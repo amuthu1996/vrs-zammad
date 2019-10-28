@@ -23,7 +23,8 @@ update search index, if configured - will be executed automatically
 
     # start background job to transfer data to search index
     return true if !SearchIndexBackend.enabled?
-    Delayed::Job.enqueue(BackgroundJobSearchIndex.new(self.class.to_s, id))
+
+    SearchIndexJob.perform_later(self.class.to_s, id)
     true
   end
 
@@ -38,6 +39,7 @@ delete search index object, will be executed automatically
 
   def search_index_destroy
     return true if ignore_search_indexing?(:destroy)
+
     SearchIndexBackend.remove(self.class.to_s, id)
     true
   end
@@ -87,9 +89,11 @@ returns
     %w[name note].each do |key|
       next if !self[key]
       next if self[key].respond_to?('blank?') && self[key].blank?
+
       attributes[key] = self[key]
     end
     return true if attributes.blank?
+
     attributes
   end
 
@@ -102,7 +106,7 @@ returns
 
 =begin
 
-serve methode to ignore model attributes in search index
+serve method to ignore model attributes in search index
 
 class Model < ApplicationModel
   include HasSearchIndexBackend
@@ -124,17 +128,20 @@ reload search index with full data
 =end
 
     def search_index_reload
-      tolerance       = 5
+      tolerance       = 10
       tolerance_count = 0
-      ids = all.order('created_at DESC').pluck(:id)
+      ids = all.order(created_at: :desc).pluck(:id)
       ids.each do |item_id|
-        item = find(item_id)
+        item = find_by(id: item_id)
+        next if !item
         next if item.ignore_search_indexing?(:destroy)
+
         begin
           item.search_index_update_backend
         rescue => e
           logger.error "Unable to send #{item.class}.find(#{item.id}).search_index_update_backend backend: #{e.inspect}"
           tolerance_count += 1
+          sleep 15
           raise "Unable to send #{item.class}.find(#{item.id}).search_index_update_backend backend: #{e.inspect}" if tolerance_count == tolerance
         end
       end

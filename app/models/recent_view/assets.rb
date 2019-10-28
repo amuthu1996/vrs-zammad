@@ -6,7 +6,7 @@ class RecentView
 
 =begin
 
-get all assets / related models for this recend view item
+get all assets / related models for this recent view item
 
   recent_view = RecentView.find(123)
   result = recent_view.assets(assets_if_exists)
@@ -42,12 +42,15 @@ returns
       end
 
       return data if !self['created_by_id']
+
       app_model_user = User.to_app_model
       %w[created_by_id].each do |local_user_id|
         next if !self[ local_user_id ]
         next if data[ app_model_user ] && data[ app_model_user ][ self[ local_user_id ] ]
+
         user = User.lookup(id: self[ local_user_id ])
         next if !user
+
         data = user.assets(data)
       end
       data

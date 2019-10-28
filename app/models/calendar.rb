@@ -7,15 +7,15 @@ class Calendar < ApplicationModel
   store :business_hours
   store :public_holidays
 
-  before_create  :validate_public_holidays, :fetch_ical
-  before_update  :validate_public_holidays, :fetch_ical
+  before_create  :validate_public_holidays, :validate_hours, :fetch_ical
+  before_update  :validate_public_holidays, :validate_hours, :fetch_ical
   after_create   :sync_default, :min_one_check
   after_update   :sync_default, :min_one_check
   after_destroy  :min_one_check
 
 =begin
 
-set inital default calendar
+set initial default calendar
 
   calendar = Calendar.init_setup
 
@@ -30,14 +30,17 @@ returns calendar object
       ip = nil
     end
 
-    # prevent multible setups for same ip
+    # prevent multiple setups for same ip
     cache = Cache.get('Calendar.init_setup.done')
     return if cache && cache[:ip] == ip
+
     Cache.write('Calendar.init_setup.done', { ip: ip }, { expires_in: 1.hour })
 
     # call for calendar suggestion
     calendar_details = Service::GeoCalendar.location(ip)
-    return if !calendar_details
+    return if calendar_details.blank?
+    return if calendar_details['name'].blank?
+    return if calendar_details['business_hours'].blank?
 
     calendar_details['name'] = Calendar.generate_uniq_name(calendar_details['name'])
     calendar_details['default'] = true
@@ -163,31 +166,31 @@ returns
       end
 
       # sync with public_holidays
-      if !public_holidays
-        self.public_holidays = {}
-      end
+      self.public_holidays ||= {}
 
       # remove old ical entries if feed has changed
       public_holidays.each do |day, meta|
         next if !public_holidays[day]['feed']
         next if meta['feed'] == Digest::MD5.hexdigest(ical_url)
+
         public_holidays.delete(day)
       end
 
       # sync new ical feed dates
       events.each do |day, summary|
-        if !public_holidays[day]
-          public_holidays[day] = {}
-        end
+        public_holidays[day] ||= {}
 
         # ignore if already added or changed
         next if public_holidays[day].key?('active')
 
+        # entry already exists
+        next if summary == public_holidays[day][:summary]
+
         # create new entry
         public_holidays[day] = {
-          active: true,
+          active:  true,
           summary: summary,
-          feed: Digest::MD5.hexdigest(ical_url)
+          feed:    Digest::MD5.hexdigest(ical_url)
         }
       end
       self.last_log = nil
@@ -215,6 +218,7 @@ returns
       if !result.success?
         raise result.error
       end
+
       cal_file = result.body
     else
       cal_file = File.open(location)
@@ -234,14 +238,17 @@ returns
           occurrences.each do |occurrence|
             result = Calendar.day_and_comment_by_event(event, occurrence.start_time)
             next if !result
+
             events[result[0]] = result[1]
           end
         end
       end
       next if event.dtstart < Time.zone.now - 1.year
       next if event.dtstart > Time.zone.now + 3.years
+
       result = Calendar.day_and_comment_by_event(event, event.dtstart)
       next if !result
+
       events[result[0]] = result[1]
     end
     events.sort.to_h
@@ -251,14 +258,73 @@ returns
   def self.day_and_comment_by_event(event, start_time)
     day = "#{start_time.year}-#{format('%02d', start_time.month)}-#{format('%02d', start_time.day)}"
     comment = event.summary || event.description
-    comment = Encode.conv( 'utf8', comment.to_s.force_encoding('utf-8') )
-    if !comment.valid_encoding?
-      comment = comment.encode('utf-8', 'binary', invalid: :replace, undef: :replace, replace: '?')
-    end
+    comment = comment.to_utf8(fallback: :read_as_sanitized_binary)
 
     # ignore daylight saving time entries
     return if comment.match?(/(daylight saving|sommerzeit|summertime)/i)
+
     [day, comment]
+  end
+
+=begin
+
+  calendar = Calendar.find(123)
+  calendar.business_hours_to_hash
+
+returns
+
+  {
+    mon: {'09:00' => '18:00'},
+    tue: {'09:00' => '18:00'},
+    wed: {'09:00' => '18:00'},
+    thu: {'09:00' => '18:00'},
+    sat: {'09:00' => '18:00'}
+  }
+
+=end
+
+  def business_hours_to_hash
+    hours = {}
+    business_hours.each do |day, meta|
+      next if !meta[:active]
+      next if !meta[:timeframes]
+
+      hours[day.to_sym] = {}
+      meta[:timeframes].each do |frame|
+        next if !frame[0]
+        next if !frame[1]
+
+        hours[day.to_sym][frame[0]] = frame[1]
+      end
+    end
+    hours
+  end
+
+=begin
+
+  calendar = Calendar.find(123)
+  calendar.public_holidays_to_array
+
+returns
+
+  [
+    Thu, 08 Mar 2020,
+    Sun, 25 Mar 2020,
+    Thu, 29 Mar 2020,
+  ]
+
+=end
+
+  def public_holidays_to_array
+    holidays = []
+    public_holidays&.each do |day, meta|
+      next if !meta
+      next if !meta['active']
+      next if meta['removed']
+
+      holidays.push Date.parse(day)
+    end
+    holidays
   end
 
   private
@@ -266,9 +332,11 @@ returns
   # if changed calendar is default, set all others default to false
   def sync_default
     return true if !default
+
     Calendar.find_each do |calendar|
       next if calendar.id == id
       next if !calendar.default
+
       calendar.default = false
       calendar.save
     end
@@ -280,6 +348,7 @@ returns
     if !Calendar.find_by(default: true)
       first = Calendar.order(:created_at, :id).limit(1).first
       return true if !first
+
       first.default = true
       first.save
     end
@@ -323,4 +392,25 @@ returns
     end
     true
   end
+
+  # validate business hours
+  def validate_hours
+
+    # get business hours
+    hours = business_hours_to_hash
+    raise Exceptions::UnprocessableEntity, 'No configured business hours found!' if hours.blank?
+
+    # validate if business hours are usable by execute a try calculation
+    begin
+      Biz.configure do |config|
+        config.hours = hours
+      end
+      Biz.time(10, :minutes).after(Time.zone.parse('Tue, 05 Feb 2019 21:40:28 UTC +00:00'))
+    rescue => e
+      raise Exceptions::UnprocessableEntity, e.message
+    end
+
+    true
+  end
+
 end

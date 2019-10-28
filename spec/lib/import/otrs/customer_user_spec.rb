@@ -104,12 +104,8 @@ RSpec.describe Import::OTRS::CustomerUser do
       }
     end
 
-    before(:each) do
+    before do
       travel_to DateTime.current
-    end
-
-    after(:each) do
-      travel_back
     end
 
     it 'creates' do

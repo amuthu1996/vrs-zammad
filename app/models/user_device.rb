@@ -40,7 +40,7 @@ store new device for user if device not already known
     if fingerprint.present?
       UserDevice.fingerprint_validation(fingerprint)
       user_devices = UserDevice.where(
-        user_id: user_id,
+        user_id:     user_id,
         fingerprint: fingerprint,
       )
       user_devices.each do |local_user_device|
@@ -54,7 +54,7 @@ store new device for user if device not already known
     device_exists_by_user_agent = false
     if %w[basic_auth token_auth].include?(type)
       user_devices = UserDevice.where(
-        user_id: user_id,
+        user_id:    user_id,
         user_agent: user_agent,
       )
       user_devices.each do |local_user_device|
@@ -69,9 +69,9 @@ store new device for user if device not already known
     if user_agent != 'unknown'
       browser = Browser.new(user_agent, accept_language: 'en-us')
       browser = {
-        plattform: browser.platform.to_s.camelize,
-        name: browser.name,
-        version: browser.version,
+        plattform:    browser.platform.to_s.camelize,
+        name:         browser.name,
+        version:      browser.version,
         full_version: browser.full_version,
       }
     end
@@ -99,10 +99,10 @@ store new device for user if device not already known
 
     # check if exists
     user_device = find_by(
-      user_id: user_id,
-      os: browser[:plattform],
-      browser: browser[:name],
-      location: location,
+      user_id:     user_id,
+      os:          browser[:plattform],
+      browser:     browser[:name],
+      location:    location,
       fingerprint: fingerprint,
     )
 
@@ -112,16 +112,16 @@ store new device for user if device not already known
 
     # create new device
     user_device = create!(
-      user_id: user_id,
-      name: name,
-      os: browser[:plattform],
-      browser: browser[:name],
-      location: location,
-      device_details: browser,
+      user_id:          user_id,
+      name:             name,
+      os:               browser[:plattform],
+      browser:          browser[:name],
+      location:         location,
+      device_details:   browser,
       location_details: location_details,
-      user_agent: user_agent,
-      ip: ip,
-      fingerprint: fingerprint,
+      user_agent:       user_agent,
+      ip:               ip,
+      fingerprint:      fingerprint,
     )
 
     # send notification if needed
@@ -161,7 +161,7 @@ log user device action
       user_device.ip = ip
       location_details = Service::GeoIp.location(ip)
 
-      # if we do not have any data from backend (e. g. geo ip ist out of service), ignore log
+      # if we do not have any data from backend (e.g. geo ip is out of service), ignore log
       if location_details && location_details['country_name']
 
         user_device.location_details = location_details
@@ -206,10 +206,10 @@ send user notification about new device or new location for device
 
     NotificationFactory::Mailer.notification(
       template: template,
-      user: user,
-      objects: {
+      user:     user,
+      objects:  {
         user_device: self,
-        user: user,
+        user:        user,
       }
     )
   end
@@ -237,6 +237,7 @@ check fingerprint string
   def self.fingerprint_validation(fingerprint)
     return true if fingerprint.blank?
     raise Exceptions::UnprocessableEntity, "fingerprint is #{fingerprint.to_s.length} chars but can only be 160 chars!" if fingerprint.to_s.length > 160
+
     true
   end
 

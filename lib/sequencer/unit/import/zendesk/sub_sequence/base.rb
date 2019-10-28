@@ -13,6 +13,7 @@ class Sequencer
 
             def self.included(base)
               base.extend(ClassMethods)
+
               base.uses :dry_run, :import_job
             end
 
@@ -39,6 +40,24 @@ class Sequencer
 
             def resource_iteration(&block)
               resource_collection.public_send(resource_iteration_method, &block)
+            rescue ZendeskAPI::Error::NetworkError => e
+              status = e.response.status.to_s
+
+              if status.match?(/^(4|5)\d\d$/)
+
+                # #2262 Zendesk-Import fails for User & Organizations when 403 "access" denied
+                return if status == '403' && resource_klass.in?(%w[UserField OrganizationField])
+
+                raise if (fail_count ||= 1) > 10
+
+                logger.error e
+                logger.info "Sleeping 10 seconds after ZendeskAPI::Error::NetworkError and retry (##{fail_count}/10)."
+                sleep 10
+
+                (fail_count += 1) && retry
+              end
+
+              raise
             end
 
             def resource_collection

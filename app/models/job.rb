@@ -3,6 +3,7 @@
 class Job < ApplicationModel
   include ChecksClientNotification
   include ChecksConditionValidation
+  include ChecksPerformValidation
 
   include Job::Assets
 
@@ -24,8 +25,10 @@ Job.run
 
   def self.run
     start_at = Time.zone.now
-    jobs = Job.where(active: true, running: false)
+    jobs = Job.where(active: true)
     jobs.each do |job|
+      next if !job.executable?
+
       job.run(false, start_at)
     end
     true
@@ -48,34 +51,38 @@ job.run(true)
   def run(force = false, start_at = Time.zone.now)
     logger.debug { "Execute job #{inspect}" }
 
-    if !executable?(start_at) && force == false
-      if next_run_at && next_run_at <= Time.zone.now
+    tickets = nil
+    Transaction.execute(reset_user_id: true) do
+      if !executable?(start_at) && force == false
+        if next_run_at && next_run_at <= Time.zone.now
+          save!
+        end
+        return
+      end
+
+      # find tickets to change
+      matching = matching_count
+      if self.matching != matching
+        self.matching = matching
         save!
       end
-      return
-    end
 
-    matching = matching_count
-    if self.matching != matching
-      self.matching = matching
+      if !in_timeplan?(start_at) && force == false
+        if next_run_at && next_run_at <= Time.zone.now
+          save!
+        end
+        return
+      end
+
+      ticket_count, tickets = Ticket.selectors(condition, limit: 2_000)
+
+      logger.debug { "Job #{name} with #{ticket_count} tickets" }
+
+      self.processed = ticket_count || 0
+      self.running = true
+      self.last_run_at = Time.zone.now
       save!
     end
-
-    if !in_timeplan?(start_at) && force == false
-      if next_run_at && next_run_at <= Time.zone.now
-        save!
-      end
-      return
-    end
-
-    # find tickets to change
-    ticket_count, tickets = Ticket.selectors(condition, 2_000)
-
-    logger.debug { "Job #{name} with #{ticket_count} tickets" }
-
-    self.processed = ticket_count || 0
-    self.running = true
-    save!
 
     tickets&.each do |ticket|
       Transaction.execute(disable_notification: disable_notification, reset_user_id: true) do
@@ -83,16 +90,21 @@ job.run(true)
       end
     end
 
-    self.running = false
-    self.last_run_at = Time.zone.now
-    save!
+    Transaction.execute(reset_user_id: true) do
+      self.running = false
+      self.last_run_at = Time.zone.now
+      save!
+    end
   end
 
   def executable?(start_at = Time.zone.now)
     return false if !active
 
-    # only execute jobs, older then 1 min, to give admin posibility to change
+    # only execute jobs older than 1 min to give admin time to make last-minute changes
     return false if updated_at > Time.zone.now - 1.minute
+
+    # check if job got stuck
+    return false if running == true && last_run_at && Time.zone.now - 1.day < last_run_at
 
     # check if jobs need to be executed
     # ignore if job was running within last 10 min.
@@ -128,7 +140,7 @@ job.run(true)
   end
 
   def matching_count
-    ticket_count, tickets = Ticket.selectors(condition, 1)
+    ticket_count, _tickets = Ticket.selectors(condition, limit: 1)
     ticket_count || 0
   end
 
@@ -171,19 +183,19 @@ job.run(true)
       end
 
       min = day_to_check.min
-      if min < 9
-        min = 0
-      elsif min < 20
-        min = 10
-      elsif min < 30
-        min = 20
-      elsif min < 40
-        min = 30
-      elsif min < 50
-        min = 40
-      elsif min < 60
-        min = 50
-      end
+      min = if min < 10
+              0
+            elsif min < 20
+              10
+            elsif min < 30
+              20
+            elsif min < 40
+              30
+            elsif min < 50
+              40
+            else
+              50
+            end
 
       # move to [0-5]0:00 time stamps
       day_to_check = day_to_check - day_to_check.min.minutes + min.minutes
@@ -194,10 +206,12 @@ job.run(true)
         (0..5).each do |minute_counter|
           if minute_counter.nonzero?
             break if day_to_check.min.zero?
+
             day_to_check = day_to_check + 10.minutes
           end
           next if !timeplan['hours'][day_to_check.hour] && !timeplan['hours'][day_to_check.hour.to_s]
           next if !timeplan['minutes'][match_minutes(day_to_check.min)] && !timeplan['minutes'][match_minutes(day_to_check.min).to_s]
+
           return day_to_check
         end
       end
@@ -222,10 +236,12 @@ job.run(true)
         (0..5).each do |minute_counter|
           minute_to_check = hour_to_check + minute_counter.minutes * 10
           next if !timeplan['minutes'][match_minutes(minute_to_check.min)] && !timeplan['minutes'][match_minutes(minute_to_check.min).to_s]
+
           time_to_check = minute_to_check
           break
         end
         next if !minute_to_check
+
         return time_to_check
       end
 
@@ -247,6 +263,7 @@ job.run(true)
 
   def match_minutes(minutes)
     return 0 if minutes < 10
+
     "#{minutes.to_s.gsub(/(\d)\d/, '\\1')}0".to_i
   end
 

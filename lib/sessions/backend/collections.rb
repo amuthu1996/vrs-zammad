@@ -10,16 +10,27 @@ class Sessions::Backend::Collections < Sessions::Backend::Base
   end
 
   def push
+    return if !to_run?
+
+    @time_now = Time.zone.now.to_i
+
     results = []
     @backends.each do |backend|
-      #puts "B: #{backend.inspect}"
       result = backend.push
-      #puts "R: #{result.inspect}"
       if result
         results.push result
       end
     end
     results
+  end
+
+  def user=(user)
+    @user = user
+
+    # update stored user in backends, too
+    @backends.each do |backend|
+      backend.user = user
+    end
   end
 
   def backend
@@ -34,6 +45,7 @@ class Sessions::Backend::Collections < Sessions::Backend::Base
       file.gsub!("#{dir}/lib/", '')
       file.gsub!(/\.rb$/, '')
       next if file.classify == 'Sessions::Backend::Collections::Base'
+
       #puts "LOAD #{file.classify}---"
       #next if file == ''
       backend = file.classify.constantize.new(@user, @asset_lookup, @client, @client_id, @ttl)

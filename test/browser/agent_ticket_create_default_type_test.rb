@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 # Regression test for UI enhancement
@@ -10,7 +9,7 @@ class AgentTicketCreateDefaultTypeTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -36,7 +35,7 @@ class AgentTicketCreateDefaultTypeTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -64,7 +63,7 @@ class AgentTicketCreateDefaultTypeTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 

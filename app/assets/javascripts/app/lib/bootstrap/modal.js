@@ -9,7 +9,6 @@
  /*
   modified by Felix Jan-2014
   - add this.$body = $(options.container || document.body)
-  - adjustBackdrop: also adopt left, top and width from $body
   modified by Felix Jul-2017
   - add rtl support
 */
@@ -84,8 +83,8 @@
         .show()
         .scrollTop(0)
 
-      if (that.options.backdrop) that.adjustBackdrop()
       that.adjustDialog()
+      if (that.options.backdrop) that.adjustBackdrop()
 
       if (transition) {
         that.$element[0].offsetWidth // force reflow
@@ -242,25 +241,14 @@
   // these following methods are used to handle overflowing modals
 
   Modal.prototype.handleUpdate = function () {
-    if (this.options.backdrop) this.adjustBackdrop()
     this.adjustDialog()
+    if (this.options.backdrop) this.adjustBackdrop()
   }
 
   Modal.prototype.adjustBackdrop = function () {
     this.$backdrop
-      .css('left', this.$body.offset().left)
-      .css('top', this.$body.offset().top)
-      .css('width', this.$body.width())
       .css('height', 0)
       .css('height', this.$element[0].scrollHeight)
-
-    if(App.i18n.dir() == 'rtl'){
-      this.$backdrop.css('right', 'auto')
-    }
-
-    if(this.scrollbarWidth){
-      this.$backdrop.css('width', this.$body.width() - this.scrollbarWidth)
-    }
   }
 
   Modal.prototype.adjustDialog = function () {

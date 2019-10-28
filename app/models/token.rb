@@ -1,8 +1,8 @@
 # Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
 
-class Token < ActiveRecord::Base
+class Token < ApplicationModel
   before_create :generate_token
-  belongs_to    :user
+  belongs_to    :user, optional: true
   store         :preferences
 
 =begin
@@ -81,6 +81,7 @@ returns
     if data[:permission]
       return if !user.permissions?(data[:permission])
       return if !token.preferences[:permission]
+
       local_permissions = data[:permission]
       if data[:permission].class != Array
         local_permissions = [data[:permission]]
@@ -90,10 +91,12 @@ returns
         local_permissions = Permission.with_parents(local_permission)
         local_permissions.each do |local_permission_name|
           next if !token.preferences[:permission].include?(local_permission_name)
+
           match = true
           break
         end
         next if !match
+
         break
       end
       return if !match

@@ -2,20 +2,6 @@ require 'rails_helper'
 require 'lib/import/import_factory_examples'
 
 RSpec.describe Import::OTRS::Article::AttachmentFactory do
-  it_behaves_like 'Import factory'
-
-  def load_attachment_json(file)
-    json_fixture("import/otrs/article/attachment/#{file}")
-  end
-
-  let(:local_article) { instance_double(Ticket::Article, ticket_id: 1337, id: 42) }
-  let(:attachments) do
-    [
-      load_attachment_json('default'),
-      load_attachment_json('default'),
-      load_attachment_json('default')
-    ]
-  end
   let(:start_import) do
     described_class.import(
       attachments:   attachments,
@@ -23,16 +9,32 @@ RSpec.describe Import::OTRS::Article::AttachmentFactory do
     )
   end
 
+  let(:attachments) do
+    [
+      load_attachment_json('default'),
+      load_attachment_json('default'),
+      load_attachment_json('default')
+    ]
+  end
+
+  let(:local_article) { instance_double(Ticket::Article, ticket_id: 1337, id: 42) }
+
+  def load_attachment_json(file)
+    json_fixture("import/otrs/article/attachment/#{file}")
+  end
+
   def import_expectations
     expect(Store).to receive(:add).exactly(3).times.with(hash_including(
                                                            object: 'Ticket::Article',
                                                            o_id:   local_article.id,
-    ))
+                                                         ))
   end
 
   def article_attachment_expectations(article_attachments)
     expect(local_article).to receive(:attachments).and_return(article_attachments)
   end
+
+  it_behaves_like 'Import factory'
 
   it 'imports' do
     article_attachment_expectations([])

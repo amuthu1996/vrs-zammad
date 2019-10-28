@@ -7,7 +7,7 @@ treeParams = (e, params) ->
   $(e.target).closest('.modal').find('.js-treeTable .js-key').each( ->
     $element = $(@)
     level = parseInt($element.attr('level'))
-    name = $element.val()
+    name = $element.val().trim()
     item =
       name: name
 
@@ -143,12 +143,17 @@ class Items extends App.ControllerSubContent
     e.preventDefault()
     id   = $(e.target).closest('tr').data('id')
     item = App.ObjectManagerAttribute.find(id)
+    ui = @
     @ajax(
       id:    "object_manager_attributes/#{id}"
       type:  'DELETE'
       url:   "#{@apiPath}/object_manager_attributes/#{id}"
       success: (data) =>
         @render()
+      error: (jqXHR, textStatus, errorThrown) ->
+        ui.log 'errors'
+        # this code is unreachable so alert will do fine
+        alert(jqXHR.responseJSON.error)
     )
 
   discard: (e) ->

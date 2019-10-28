@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class ChatTest < ActiveSupport::TestCase
@@ -7,28 +6,28 @@ class ChatTest < ActiveSupport::TestCase
     groups = Group.all
     roles  = Role.where(name: %w[Agent])
     @agent1 = User.create_or_update(
-      login: 'ticket-chat-agent1@example.com',
-      firstname: 'Notification',
-      lastname: 'Agent1',
-      email: 'ticket-chat-agent1@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
-      updated_at: '2015-02-05 16:37:00',
+      login:         'ticket-chat-agent1@example.com',
+      firstname:     'Notification',
+      lastname:      'Agent1',
+      email:         'ticket-chat-agent1@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
+      updated_at:    '2015-02-05 16:37:00',
       updated_by_id: 1,
       created_by_id: 1,
     )
     @agent2 = User.create_or_update(
-      login: 'ticket-chat-agent2@example.com',
-      firstname: 'Notification',
-      lastname: 'Agent2',
-      email: 'ticket-chat-agent2@example.com',
-      password: 'agentpw',
-      active: true,
-      roles: roles,
-      groups: groups,
-      updated_at: '2015-02-05 16:38:00',
+      login:         'ticket-chat-agent2@example.com',
+      firstname:     'Notification',
+      lastname:      'Agent2',
+      email:         'ticket-chat-agent2@example.com',
+      password:      'agentpw',
+      active:        true,
+      roles:         roles,
+      groups:        groups,
+      updated_at:    '2015-02-05 16:38:00',
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -40,13 +39,103 @@ class ChatTest < ActiveSupport::TestCase
     Setting.set('chat', false)
   end
 
+  test 'instance_variable test' do
+    assert_nil(Sessions::Event::Base.instance_variable_get(:@database_connection))
+    assert_equal(Sessions::Event::ChatBase.instance_variable_get(:@database_connection), true)
+    assert_equal(Sessions::Event::ChatStatusAgent.instance_variable_get(:@database_connection), true)
+  end
+
+  # check if db connection is available for chat events
+  # see: https://github.com/zammad/zammad/issues/2353
+  test 'chat event db connection test' do
+
+    skip "Can't properly disconnect while Spring is in use." if defined?(Spring)
+
+    class DummyWs
+      def send(msg)
+        Rails.logger.info "WS send: #{msg}"
+      end
+    end
+
+    # with websockets
+    assert(User.first)
+
+    # make sure to emulate unconnected WS env
+    ActiveRecord::Base.remove_connection
+
+    message = Sessions::Event.run(
+      event:     'login',
+      payload:   {},
+      session:   123,
+      remote_ip: '127.0.0.1',
+      client_id: '123',
+      clients:   {
+        '123' => {
+          websocket: DummyWs.new # to simulate a ws connection
+        }
+      },
+      options:   {},
+    )
+    assert_equal(message, false)
+
+    assert_raises(ActiveRecord::ConnectionNotEstablished) do
+      User.first
+    end
+
+    message = Sessions::Event.run(
+      event:     'chat_status_customer',
+      payload:   {},
+      session:   123,
+      remote_ip: '127.0.0.1',
+      client_id: '123',
+      clients:   {
+        '123' => DummyWs.new # to simulate a ws connection
+      },
+      options:   {},
+    )
+    assert_equal(message[:event], 'chat_error')
+
+    assert_raises(ActiveRecord::ConnectionNotEstablished) do
+      User.first
+    end
+
+    # re-establish connection
+    ActiveRecord::Base.establish_connection
+
+    # with ajax long polling
+    assert(User.first)
+    message = Sessions::Event.run(
+      event:     'login',
+      payload:   {},
+      session:   123,
+      remote_ip: '127.0.0.1',
+      client_id: '123',
+      clients:   {},
+      options:   {},
+    )
+    assert_equal(message, false)
+    assert(User.first)
+
+    message = Sessions::Event.run(
+      event:     'chat_status_customer',
+      payload:   {},
+      session:   123,
+      remote_ip: '127.0.0.1',
+      client_id: '123',
+      clients:   {},
+      options:   {},
+    )
+    assert_equal(message[:event], 'chat_error')
+    assert(User.first)
+  end
+
   test 'default test' do
 
     chat = Chat.create_or_update(
-      name: 'default',
-      max_queue: 5,
-      note: '',
-      active: true,
+      name:          'default',
+      max_queue:     5,
+      note:          '',
+      active:        true,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -69,9 +158,9 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal(false, agent_state[:active])
 
     # set agent 1 to active
-    chat_agent1 = Chat::Agent.create_or_update(
-      active: true,
-      concurrent: 4,
+    Chat::Agent.create_or_update(
+      active:        true,
+      concurrent:    4,
       updated_by_id: @agent1.id,
       created_by_id: @agent1.id,
     )
@@ -109,8 +198,8 @@ class ChatTest < ActiveSupport::TestCase
 
     # activate second agent
     chat_agent2 = Chat::Agent.create_or_update(
-      active: true,
-      concurrent: 2,
+      active:        true,
+      concurrent:    2,
       updated_by_id: @agent2.id,
       created_by_id: @agent2.id,
     )
@@ -137,7 +226,7 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal(true, agent_state[:active])
 
     # start next chat
-    chat_session2 = Chat::Session.create(
+    Chat::Session.create(
       chat_id: chat.id,
     )
 
@@ -163,7 +252,7 @@ class ChatTest < ActiveSupport::TestCase
     assert_equal(true, agent_state[:active])
 
     # start new chats
-    chat_session3 = Chat::Session.create(
+    Chat::Session.create(
       chat_id: chat.id,
     )
     chat_session4 = Chat::Session.create(
@@ -203,26 +292,26 @@ class ChatTest < ActiveSupport::TestCase
 
     Chat::Message.create(
       chat_session_id: chat_session6.id,
-      content: 'message 1',
-      created_by_id: @agent1.id,
+      content:         'message 1',
+      created_by_id:   @agent1.id,
     )
     travel 1.second
     Chat::Message.create(
       chat_session_id: chat_session6.id,
-      content: 'message 2',
-      created_by_id: @agent1.id,
+      content:         'message 2',
+      created_by_id:   @agent1.id,
     )
     travel 1.second
     Chat::Message.create(
       chat_session_id: chat_session6.id,
-      content: 'message 3',
-      created_by_id: @agent1.id,
+      content:         'message 3',
+      created_by_id:   @agent1.id,
     )
     travel 1.second
     Chat::Message.create(
       chat_session_id: chat_session6.id,
-      content: 'message 4',
-      created_by_id: nil,
+      content:         'message 4',
+      created_by_id:   nil,
     )
 
     # check customer state
@@ -354,11 +443,11 @@ class ChatTest < ActiveSupport::TestCase
 
   test 'blocked ip test' do
     chat = Chat.create!(
-      name: 'ip test',
-      max_queue: 5,
-      note: '',
-      block_ip: '127.0.0.1;127.0.0.2;127.1.0.*',
-      active: true,
+      name:          'ip test',
+      max_queue:     5,
+      note:          '',
+      block_ip:      '127.0.0.1;127.0.0.2;127.1.0.*',
+      active:        true,
       updated_by_id: 1,
       created_by_id: 1,
     )
@@ -373,11 +462,11 @@ class ChatTest < ActiveSupport::TestCase
 
   test 'blocked country test' do
     chat = Chat.create!(
-      name: 'country test',
-      max_queue: 5,
-      note: '',
+      name:          'country test',
+      max_queue:     5,
+      note:          '',
       block_country: 'AU;CH',
-      active: true,
+      active:        true,
       updated_by_id: 1,
       created_by_id: 1,
     )

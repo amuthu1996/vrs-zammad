@@ -42,14 +42,16 @@ returns
 
         if local_attributes['member_ids'].present?
 
-          # featrue used for different propose, do limit references
+          # feature used for different purpose; do limit references
           if local_attributes['member_ids'].count > 100
             local_attributes['member_ids'] = local_attributes['member_ids'].sort[0, 100]
           end
           local_attributes['member_ids'].each do |local_user_id|
             next if data[ app_model_user ] && data[ app_model_user ][ local_user_id ]
+
             user = User.lookup(id: local_user_id)
             next if !user
+
             data = user.assets(data)
           end
         end
@@ -59,8 +61,10 @@ returns
       %w[created_by_id updated_by_id].each do |local_user_id|
         next if !self[ local_user_id ]
         next if data[ app_model_user ][ self[ local_user_id ] ]
+
         user = User.lookup(id: self[ local_user_id ])
         next if !user
+
         data = user.assets(data)
       end
       data

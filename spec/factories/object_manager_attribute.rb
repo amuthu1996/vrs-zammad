@@ -1,45 +1,32 @@
 FactoryBot.define do
-  sequence :object_manager_attribute_name do |n|
-    "internal_name#{n}"
-  end
-
-  sequence :object_manager_attribute_display do |n|
-    "Display Name #{n}"
-  end
-end
-
-FactoryBot.define do
   factory :object_manager_attribute, class: ObjectManager::Attribute do
-
-    object_lookup_id 2
-    name    { generate(:object_manager_attribute_name) }
-    display { generate(:object_manager_attribute_display) }
-    data_option_new do
-      {}
-    end
-    editable false
-    active   true
-    screens  do
+    object_lookup_id          { ObjectLookup.by_name('Ticket') }
+    sequence(:name)           { |n| "internal_name#{n}" }
+    sequence(:display)        { |n| "Display Name #{n}" }
+    data_option_new           { {} }
+    editable                  { true }
+    active                    { true }
+    add_attribute(:to_create) { true }
+    to_migrate                { true }
+    to_delete                 { false }
+    to_config                 { false }
+    position                  { 15 }
+    updated_by_id             { 1 }
+    created_by_id             { 1 }
+    screens do
       {
         'create_top' => {
           '-all-' => {
             'null' => false
           }
         },
-        'edit' => {}
+        'edit'       => {}
       }
     end
-    add_attribute(:to_create) { false }
-    to_migrate    false
-    to_delete     false
-    to_config     false
-    position      15
-    updated_by_id 1
-    created_by_id 1
   end
 
   factory :object_manager_attribute_text, parent: :object_manager_attribute do
-    data_type   'input'
+    data_type { 'input' }
     data_option do
       {
         'type'      => 'text',
@@ -53,17 +40,52 @@ FactoryBot.define do
     end
   end
 
-  factory :object_manager_attribute_select, parent: :object_manager_attribute do
-    data_type   'select'
+  factory :object_manager_attribute_integer, parent: :object_manager_attribute do
+    data_type { 'integer' }
     data_option do
       {
-        'default' => '',
-        'options' => {
+        'default' => 0,
+        'min'     => 0,
+        'max'     => 9999,
+      }
+    end
+  end
+
+  factory :object_manager_attribute_date, parent: :object_manager_attribute do
+    name      { 'date_attribute' }
+    data_type { 'date' }
+    data_option do
+      {
+        'diff' => 24,
+        'null' => true,
+      }
+    end
+  end
+
+  factory :object_manager_attribute_datetime, parent: :object_manager_attribute do
+    name      { 'datetime_attribute' }
+    data_type { 'datetime' }
+    data_option do
+      {
+        'future' => true,
+        'past'   => true,
+        'diff'   => 24,
+        'null'   => true,
+      }
+    end
+  end
+
+  factory :object_manager_attribute_select, parent: :object_manager_attribute do
+    data_type { 'select' }
+    data_option do
+      {
+        'default'    => '',
+        'options'    => {
           'key_1' => 'value_1',
           'key_2' => 'value_2',
           'key_3' => 'value_3',
         },
-        'relation' => '',
+        'relation'   => '',
         'nulloption' => true,
         'multiple'   => false,
         'null'       => true,
@@ -74,10 +96,10 @@ FactoryBot.define do
   end
 
   factory :object_manager_attribute_tree_select, parent: :object_manager_attribute do
-    data_type 'tree_select'
+    data_type { 'tree_select' }
     data_option do
       {
-        'options' => [
+        'options'    => [
           {
             'name'     => 'Incident',
             'value'    => 'Incident',
@@ -109,7 +131,7 @@ FactoryBot.define do
                     'value' => 'Incident::Softwareproblem::CRM'
                   },
                   {
-                    'name' => 'EDI',
+                    'name'  => 'EDI',
                     'value' => 'Incident::Softwareproblem::EDI'
                   },
                   {
@@ -180,6 +202,54 @@ FactoryBot.define do
         'relation'   => '',
         'maxlength'  => 255,
         'nulloption' => true,
+      }
+    end
+  end
+
+  factory :required_screen, class: Hash do
+    create_middle do
+      {
+        'ticket.customer'    => {
+          shown:      true,
+          required:   true,
+          item_class: 'column'
+        },
+        'ticket.agent'       => {
+          shown:      true,
+          required:   true,
+          item_class: 'column'
+        },
+        'admin.organization' => {
+          shown:    true,
+          required: true,
+        },
+        'admin.group'        => {
+          shown:      true,
+          required:   true,
+          item_class: 'column'
+        },
+      }
+    end
+
+    edit do
+      {
+        'ticket.customer'    => {
+          shown:    true,
+          required: true
+        },
+        'ticket.agent'       => {
+          shown:    true,
+          required: true
+        },
+        'admin.organization' => {
+          shown:    true,
+          required: true,
+        },
+        'admin.group'        => {
+          shown:      true,
+          required:   true,
+          item_class: 'column'
+        },
       }
     end
   end

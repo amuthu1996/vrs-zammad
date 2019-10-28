@@ -17,6 +17,7 @@ class Sequencer
 
                 def process
                   return if !skip?
+
                   logger.debug { "Skipping. Missing mandatory attributes for #{attribute}: #{attribute_value.inspect}" }
                   state.provide(:action, :skipped)
                 end
@@ -29,13 +30,14 @@ class Sequencer
 
                 def skip?
                   return true if attribute_value.blank?
+
                   mandatory_missing?
                 end
 
                 def mandatory_missing?
                   values = attribute_value.fetch_values(*mandatory)
                   values.none?(&:present?)
-                rescue KeyError => e
+                rescue KeyError
                   false
                 end
               end

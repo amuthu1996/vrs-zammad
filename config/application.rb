@@ -1,6 +1,7 @@
-require File.expand_path('boot', __dir__)
+require_relative 'boot'
 
 require 'rails/all'
+require_relative 'issue_2656_workaround_for_rails_issue_33600'
 
 # DO NOT REMOVE THIS LINE - see issue #2037
 Bundler.setup
@@ -11,6 +12,9 @@ Bundler.require(*Rails.groups)
 
 module Zammad
   class Application < Rails::Application
+    # Initialize configuration defaults for originally generated Rails version.
+    config.load_defaults 5.2
+
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration should go into files in config/initializers
     # -- all .rb files in that directory are automatically loaded.
@@ -32,6 +36,7 @@ module Zammad
       'observer::_ticket::_article::_fillup_from_email',
       'observer::_ticket::_article::_communicate_email',
       'observer::_ticket::_article::_communicate_facebook',
+      'observer::_ticket::_article::_communicate_sms',
       'observer::_ticket::_article::_communicate_twitter',
       'observer::_ticket::_article::_communicate_telegram',
       'observer::_ticket::_reset_new_state',
@@ -47,6 +52,11 @@ module Zammad
       'observer::_sla::_ticket_rebuild_escalation',
       'observer::_transaction'
 
+    config.active_job.queue_adapter = :delayed_job
+
+    # Use custom logger to log Thread id next to Process pid
+    config.log_formatter = ::Logger::Formatter.new
+
     # REST api path
     config.api_path = '/api/v1'
 
@@ -58,47 +68,47 @@ module Zammad
       'ticket.agent' => {
         notification_config: {
           matrix: {
-            create: {
+            create:           {
               criteria: {
-                owned_by_me: true,
+                owned_by_me:     true,
                 owned_by_nobody: true,
-                no: false,
+                no:              false,
               },
-              channel: {
-                email: true,
+              channel:  {
+                email:  true,
                 online: true,
               }
             },
-            update: {
+            update:           {
               criteria: {
-                owned_by_me: true,
+                owned_by_me:     true,
                 owned_by_nobody: true,
-                no: false,
+                no:              false,
               },
-              channel: {
-                email: true,
+              channel:  {
+                email:  true,
                 online: true,
               }
             },
             reminder_reached: {
               criteria: {
-                owned_by_me: true,
+                owned_by_me:     true,
                 owned_by_nobody: false,
-                no: false,
+                no:              false,
               },
-              channel: {
-                email: true,
+              channel:  {
+                email:  true,
                 online: true,
               }
             },
-            escalation: {
+            escalation:       {
               criteria: {
-                owned_by_me: true,
+                owned_by_me:     true,
                 owned_by_nobody: false,
-                no: false,
+                no:              false,
               },
-              channel: {
-                email: true,
+              channel:  {
+                email:  true,
                 online: true,
               }
             }

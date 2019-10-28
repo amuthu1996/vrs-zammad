@@ -4,7 +4,7 @@ class Index extends App.ControllerSubContent
   constructor: ->
     super
 
-    new App.ControllerGenericIndex(
+    @genericController = new App.ControllerGenericIndex(
       el: @el
       id: @id
       genericObject: 'TextModule'
@@ -12,18 +12,19 @@ class Index extends App.ControllerSubContent
         new App.Import(
           baseUrl: '/api/v1/text_modules'
           container: @el.closest('.content')
+          deleteOption: true
         )
       pageData:
-        home: 'text_modules'
-        object: 'TextModule'
-        objects: 'Text modules'
+        home:      'text_modules'
+        object:    'TextModule'
+        objects:   'Text modules'
         navupdate: '#text_modules'
-        notes: [
+        notes:     [
           'Text modules are ...'
         ]
         buttons: [
-          { name: 'Import', 'data-type': 'import', class: 'btn' }
-          { name: 'New text module', 'data-type': 'new', class: 'btn--success' }
+          { name: 'Import',          'data-type': 'import', class: 'btn' }
+          { name: 'New text module', 'data-type': 'new',    class: 'btn--success' }
         ]
       container: @el.closest('.content')
     )

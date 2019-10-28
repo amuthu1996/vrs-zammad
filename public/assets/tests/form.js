@@ -713,13 +713,6 @@ test("form handler check with and without fieldset", function() {
 
 test("form postmaster filter", function() {
 
-// check match area
-
-// check set area
-
-// add match rule
-
-// add set rule
   App.TicketPriority.refresh([
     {
       id:   1,
@@ -769,6 +762,10 @@ test("form postmaster filter", function() {
       },
       'x-zammad-ticket-priority_id': {
         value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
       }
     },
   }
@@ -812,44 +809,120 @@ test("form postmaster filter", function() {
       },
       'x-zammad-ticket-priority_id': {
         value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
       }
     },
   };
   deepEqual(params, test_params, 'form param check')
+
   el.find('[name="set::x-zammad-ticket-priority_id::value"]').closest('.js-filterElement').find('.js-remove').click()
   el.find('[name="set::x-zammad-ticket-customer_id::value"]').closest('.js-filterElement').find('.js-remove').click()
-  App.Delay.set(function() {
-      test("form param check after remove click", function() {
-        params = App.ControllerForm.params(el)
-        test_params = {
-          input1: 'some not used default',
-          input2: 'some name',
-          match: {
-            from: {
-              operator: 'contains',
-              value: 'some@address'
-            },
-            subject: {
-              operator: 'contains',
-              value: 'some subject'
-            }
-          },
-          set: {
-            'x-zammad-ticket-owner_id': {
-              value: 'owner',
-              value_completion: ''
-            },
-            'x-zammad-ticket-group_id': {
-              value: '1'
-            },
-          },
-        };
-        deepEqual(params, test_params, 'form param check')
-      });
-    },
-    1000
-  );
 
+  params = App.ControllerForm.params(el)
+  test_params = {
+    input1: 'some not used default',
+    input2: 'some name',
+    match: {
+      from: {
+        operator: 'contains',
+        value: 'some@address'
+      },
+      subject: {
+        operator: 'contains',
+        value: 'some subject'
+      }
+    },
+    set: {
+      'x-zammad-ticket-owner_id': {
+        value: 'owner',
+        value_completion: ''
+      },
+      'x-zammad-ticket-group_id': {
+        value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
+      },
+    },
+  };
+  deepEqual(params, test_params, 'form param check')
+
+  el.find('.postmaster_set .js-filterElement').last().find('.filter-controls .js-add').click()
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    input1: 'some not used default',
+    input2: 'some name',
+    match: {
+      from: {
+        operator: 'contains',
+        value: 'some@address'
+      },
+      subject: {
+        operator: 'contains',
+        value: 'some subject'
+      }
+    },
+    set: {
+      'x-zammad-ticket-owner_id': {
+        value: 'owner',
+        value_completion: ''
+      },
+      'x-zammad-ticket-group_id': {
+        value: '1'
+      },
+      'x-zammad-ticket-priority_id': {
+        value: '1'
+      },
+      'x-zammad-ticket-tags': {
+        operator: 'add',
+        value: 'test, test1'
+      },
+    },
+  };
+  deepEqual(params, test_params, 'form param check')
+
+  App.Delay.set(function() {
+    test("form postmaster filter - needed to do delayed because of tag ui", function() {
+      el.find('[name="set::x-zammad-ticket-tags::value"]').closest('.js-filterElement').find('.token .close').last().click()
+      params = App.ControllerForm.params(el)
+      test_params = {
+        input1: 'some not used default',
+        input2: 'some name',
+        match: {
+          from: {
+            operator: 'contains',
+            value: 'some@address'
+          },
+          subject: {
+            operator: 'contains',
+            value: 'some subject'
+          }
+        },
+        set: {
+          'x-zammad-ticket-owner_id': {
+            value: 'owner',
+            value_completion: ''
+          },
+          'x-zammad-ticket-group_id': {
+            value: '1'
+          },
+          'x-zammad-ticket-priority_id': {
+            value: '1'
+          },
+          'x-zammad-ticket-tags': {
+            operator: 'add',
+            value: 'test'
+          },
+        },
+      };
+      deepEqual(params, test_params, 'form param check')
+    })
+  }, 500);
 });
 
 test("form selector", function() {
@@ -1034,6 +1107,7 @@ test("object manager form 1", function() {
   var test_params = {
     data_option: {
       default: "",
+      linktemplate: "",
       maxlength: 120,
       type: "text"
     },
@@ -1145,6 +1219,7 @@ test("object manager form 2", function() {
   var test_params = {
     data_option: {
       default: "",
+      linktemplate: "",
       maxlength: 120,
       type: "text"
     },
@@ -1198,6 +1273,7 @@ test("object manager form 3", function() {
   var test_params = {
     data_option: {
       default: "",
+      linktemplate: "",
       maxlength: 120,
       type: "text"
     },
@@ -1235,6 +1311,7 @@ test("object manager form 3", function() {
   test_params = {
     data_option: {
       default: "",
+      linktemplate: "",
       maxlength: 120,
       type: "text"
     },
@@ -1263,6 +1340,70 @@ test("object manager form 3", function() {
     }
   }
   deepEqual(params, test_params, 'form param check')
+
+});
+
+test("check if select value is not existing but is shown", function() {
+
+  $('#forms').append('<hr><h1>check if select value is not existing but is shown</h1><form id="form17"></form>')
+  var el = $('#form17')
+  var defaults = {
+    select1: 'NOT EXISTING',
+  }
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: 'XY', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+      ],
+    },
+    params: defaults,
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select1: 'NOT EXISTING',
+  }
+  deepEqual(params, test_params)
+
+  equal('AA', el.find('[name=select1] option')[0].text)
+  equal('äöü', el.find('[name=select1] option')[1].text)
+  equal('b', el.find('[name=select1] option')[2].text)
+  equal('B', el.find('[name=select1] option')[3].text)
+  equal('NOT EXISTING', el.find('[name=select1] option')[4].text)
+  equal('XX', el.find('[name=select1] option')[5].text)
+
+});
+
+test("check if select value is not existing and is not shown", function() {
+
+  $('#forms').append('<hr><h1>check if select value is not existing and is not shown</h1><form id="form18"></form>')
+  var el = $('#form18')
+  var defaults = {
+    select1: 'NOT EXISTING',
+  }
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: 'XY', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+      ],
+    },
+    params: defaults,
+    rejectNonExistentValues: true,
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select1: 'XY',
+  }
+  deepEqual(params, test_params)
+
+  equal('AA', el.find('[name=select1] option')[0].text)
+  equal('äöü', el.find('[name=select1] option')[1].text)
+  equal('b', el.find('[name=select1] option')[2].text)
+  equal('B', el.find('[name=select1] option')[3].text)
+  equal('XX', el.find('[name=select1] option')[4].text)
 
 });
 
@@ -1384,4 +1525,103 @@ test("form select with empty option list", function() {
     select6: 'B',
   }
   deepEqual(params, test_params)
+});
+
+test("form elements with sort check", function() {
+
+  $('#forms').append('<hr><h1>form elements with sort check</h1><form id="form16"></form>')
+  var el = $('#form16')
+  var defaults = {}
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'select1', display: 'Select1', tag: 'select', null: true, default: 'XY', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+        { name: 'checkbox1', display: 'Checkbox1', tag: 'checkbox', null: false, default: 'A', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+        { name: 'radio1', display: 'Radio1', tag: 'radio', null: false, default: 'A', options: { 'XX': 'AA', 'A': 'XX', 'B': 'B', 'XY': 'b', '': 'äöü' } },
+      ],
+    },
+    params: defaults,
+    autofocus: true
+  });
+
+  params = App.ControllerForm.params(el)
+  test_params = {
+    select1: 'XY',
+    checkbox1: 'A',
+    radio1: 'A',
+  }
+  deepEqual(params, test_params)
+
+  equal('AA', el.find('[name=select1] option')[0].text)
+  equal('äöü', el.find('[name=select1] option')[1].text)
+  equal('b', el.find('[name=select1] option')[2].text)
+  equal('B', el.find('[name=select1] option')[3].text)
+  equal('XX', el.find('[name=select1] option')[4].text)
+
+  equal('XX', el.find('[name=checkbox1]')[0].value)
+  equal('', el.find('[name=checkbox1]')[1].value)
+  equal('XY', el.find('[name=checkbox1]')[2].value)
+  equal('B', el.find('[name=checkbox1]')[3].value)
+  equal('A', el.find('[name=checkbox1]')[4].value)
+
+  equal('XX', el.find('[name=radio1]')[0].value)
+  equal('', el.find('[name=radio1]')[1].value)
+  equal('XY', el.find('[name=radio1]')[2].value)
+  equal('B', el.find('[name=radio1]')[3].value)
+  equal('A', el.find('[name=radio1]')[4].value)
+
+});
+
+test("form deep nesting", function() {
+  $('#forms').append('<hr><h1>form selector</h1><div><form id="form19"></form></div>')
+  var el = $('#form19')
+  var defaults = {
+    a: {
+      input1: 'a'
+    },
+    b: {
+      c: {
+        input2: 'b'
+      }
+    }
+  }
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'a::input1', display: 'Input1', tag: 'input', type: 'text', limit: 100, null: true, default: 'some not used default33' },
+        { name: 'b::c::input2', display: 'Input2', tag: 'input', type: 'text', limit: 100, null: true, default: 'some used default' },
+      ],
+    },
+    params: defaults,
+  });
+
+  params = App.ControllerForm.params(el)
+  deepEqual(params, defaults, 'nested params')
+});
+
+test("form with external links", function() {
+  $('#forms').append('<hr><h1>form with external links</h1><div><form id="form20"></form></div>')
+  var el = $('#form20')
+  var defaults = {
+    a: '133',
+    b: 'abc d',
+  }
+  new App.ControllerForm({
+    el:        el,
+    model:     {
+      configure_attributes: [
+        { name: 'a', display: 'Input1', tag: 'input', type: 'text', limit: 100, null: true, linktemplate:  "https://example.com/?q=#{ticket.a}" },
+        { name: 'b', display: 'Select1', tag: 'select', type: 'text', options: { a: 1, b: 2 }, limit: 100, null: true, linktemplate:  "https://example.com/?q=#{ticket.b}" },
+      ],
+      className: 'Ticket',
+    },
+    params: defaults,
+  });
+
+  params = App.ControllerForm.params(el)
+  deepEqual(params, defaults)
+  equal('https://example.com/?q=133', el.find('input[name="a"]').parents('.controls').find('a[href]').attr('href'))
+  equal('https://example.com/?q=abc%20d', el.find('select[name="b"]').parents('.controls').find('a[href]').attr('href'))
 });

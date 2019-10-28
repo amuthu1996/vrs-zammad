@@ -69,18 +69,21 @@ class App.Model extends Spine.Model
       return @login
     return '???'
 
+  # shows the icon representing the object itself (e. g. the organization icon in organization profile or ticket sidebar)
   icon: (user) ->
     ''
 
+  # shows icons in a list of objects (e. g. the traffic light rings in the ticket list in user profile)
   iconTitle: (user) ->
     ''
 
+  # shows icons in the activity stream (e. g. show ! if the activity stream icon is belonging to the session user)
   iconActivity: (user) ->
     ''
 
   @validate: (data = {}) ->
 
-    # based on model attrbutes
+    # based on model attributes
     if App[ data['model'] ] && App[ data['model'] ].attributesGet
       attributes = App[ data['model'] ].attributesGet(data['screen'])
 
@@ -335,7 +338,7 @@ set new attributes of model (remove already available attributes)
 
   # localOrServer can be:
   #  change -> has changed local
-  #  destroy -> has beed removed local or remote
+  #  destroy -> has been removed local or remote
   #  refresh -> has been changed remote
 
   params =
@@ -393,7 +396,7 @@ set new attributes of model (remove already available attributes)
               ->
               clear: true
             )
-          App.Delay.set(callback, 200, "full-#{@className}")
+          App.Delay.set(callback, 200, "fullcollection-#{@className}", "model-#{@className}")
 
         "Collection::Subscribe::#{@className}"
       )
@@ -453,7 +456,7 @@ set new attributes of model (remove already available attributes)
         'change'
         (items) =>
 
-          # check if result is array or singel item
+          # check if result is array or single item
           if !_.isArray(items)
             items = [items]
           App.Log.debug('Model', "local change #{@className}", items)
@@ -465,7 +468,7 @@ set new attributes of model (remove already available attributes)
         'destroy'
         (items) =>
 
-          # check if result is array or singel item
+          # check if result is array or single item
           if !_.isArray(items)
             items = [items]
           App.Log.debug('Model', "local destroy #{@className}", items)
@@ -479,7 +482,7 @@ set new attributes of model (remove already available attributes)
         'refresh'
         (items) =>
 
-          # check if result is array or singel item
+          # check if result is array or single item
           if !_.isArray(items)
             items = [items]
           App.Log.debug('Model', "local refresh #{@className}", items)
@@ -506,7 +509,7 @@ set new attributes of model (remove already available attributes)
             if !genericObject || new Date(item.updated_at) > new Date(genericObject.updated_at)
               App.Log.debug('Model', "request #{@className}.find(#{item.id}) from server")
               @full(item.id, false, true)
-          App.Delay.set(callback, 600, item.id, "full-#{@className}-#{item.id}")
+          App.Delay.set(callback, 600, "full-#{item.id}", "model-#{@className}")
         "Item::Subscribe::#{@className}"
       )
 
@@ -520,7 +523,7 @@ set new attributes of model (remove already available attributes)
           App.Log.debug('Model', "server delete on #{@className}.find(#{item.id}) #{item.updated_at}")
           callback = ->
             genericObject.trigger('destroy', genericObject)
-          App.Delay.set(callback, 500, item.id, "delete-#{@className}-#{item.id}")
+          App.Delay.set(callback, 500, "delete-#{item.id}", "model-#{@className}")
         "Item::SubscribeDelete::#{@className}"
       )
 
@@ -560,7 +563,7 @@ set new attributes of model (remove already available attributes)
   App.Model.fetchFull(
     @callback
     clear: true
-    force: false # only do server call if no record exsits
+    force: false # only do server call if no record exists
   )
 
 
@@ -603,7 +606,7 @@ set new attributes of model (remove already available attributes)
         if data.assets
           App.Collection.loadAssets(data.assets, targetModel: @className)
 
-          # in case of no record_ids are there, no inital render is fired
+          # if no record_ids are found, no initial render is fired
           if data.record_ids && _.isEmpty(data.record_ids)
             App[@className].trigger('refresh', [])
 
@@ -833,6 +836,8 @@ set new attributes of model (remove already available attributes)
     )
 
   @clearInMemory: ->
+    App.Delay.clearLevel("model-#{@className}")
+
     # reset callbacks to session based functions
     @resetCallbacks()
 

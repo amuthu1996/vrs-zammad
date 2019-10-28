@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class AgentTicketAutoAssignmentTest < TestCase
@@ -8,7 +7,7 @@ class AgentTicketAutoAssignmentTest < TestCase
     login(
       username: 'agent1@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -20,27 +19,27 @@ class AgentTicketAutoAssignmentTest < TestCase
     ticket1 = ticket_create(
       data: {
         customer: 'nico',
-        group: 'Users',
-        title: 'test_auto_assignment_1 - ticket 1',
-        body: 'test_auto_assignment_1 - ticket 1 - no auto assignment',
+        group:    'Users',
+        title:    'test_auto_assignment_1 - ticket 1',
+        body:     'test_auto_assignment_1 - ticket 1 - no auto assignment',
       },
     )
 
     ticket2 = ticket_create(
       data: {
         customer: 'nico',
-        group: 'Users',
-        title: 'test_auto_assignment_2 - ticket 2',
-        body: 'test_auto_assignment_2 - ticket 2 - no auto assignment',
+        group:    'Users',
+        title:    'test_auto_assignment_2 - ticket 2',
+        body:     'test_auto_assignment_2 - ticket 2 - no auto assignment',
       },
     )
 
     ticket3 = ticket_create(
       data: {
         customer: 'nico',
-        group: 'Users',
-        title: 'test_auto_assignment_3 - ticket 3',
-        body: 'test_auto_assignment_3 - ticket 3 - no auto assignment',
+        group:    'Users',
+        title:    'test_auto_assignment_3 - ticket 3',
+        body:     'test_auto_assignment_3 - ticket 3 - no auto assignment',
       },
     )
 
@@ -51,7 +50,7 @@ class AgentTicketAutoAssignmentTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -62,7 +61,7 @@ class AgentTicketAutoAssignmentTest < TestCase
 
     # verify if owner is set
     match(
-      css: '.content.active .sidebar select[name="owner_id"]',
+      css:   '.content.active .sidebar select[name="owner_id"]',
       value: '-',
     )
 
@@ -73,7 +72,7 @@ class AgentTicketAutoAssignmentTest < TestCase
 
     # verify if owner is set
     match(
-      css: '.content.active .sidebar select[name="owner_id"]',
+      css:   '.content.active .sidebar select[name="owner_id"]',
       value: '-',
     )
 
@@ -84,7 +83,7 @@ class AgentTicketAutoAssignmentTest < TestCase
     click(css: '.content.active a[href="#settings/ticket"]')
     click(css: '.content.active a[href="#auto_assignment"]')
     switch(
-      css: '.content.active .js-ticketAutoAssignment',
+      css:  '.content.active .js-ticketAutoAssignment',
       type: 'on',
     )
 
@@ -95,8 +94,8 @@ class AgentTicketAutoAssignmentTest < TestCase
 
     # verify if owner is set
     watch_for(
-      css: '.content.active .sidebar select[name="owner_id"]',
-      value: 'Test Master',
+      css:     '.content.active .sidebar select[name="owner_id"]',
+      value:   'Test Master',
       timeout: 2,
     )
 
@@ -107,21 +106,22 @@ class AgentTicketAutoAssignmentTest < TestCase
 
     # verify if owner is set
     watch_for(
-      css: '.content.active .sidebar select[name="owner_id"]',
-      value: 'Test Master',
+      css:     '.content.active .sidebar select[name="owner_id"]',
+      value:   'Test Master',
       timeout: 2,
     )
 
     # define auto assignment exception
     click(css: 'a[href="#manage"]')
+    # flanky
     click(css: '.content.active a[href="#settings/ticket"]')
     click(css: '.content.active a[href="#auto_assignment"]')
     click(css: '.content.active .js-select.js-option[title="master@example.com"]')
     click(css: '.content.active .js-timeAccountingFilter')
 
     watch_for_disappear(
-      css: '.content.active .sidebar select[name="owner_id"]',
-      value: 'Test Master',
+      css:     '.content.active .sidebar select[name="owner_id"]',
+      value:   'Test Master',
       timeout: 10,
     )
 
@@ -133,7 +133,7 @@ class AgentTicketAutoAssignmentTest < TestCase
     # verify if owner is not set
     sleep 6
     match(
-      css: '.content.active .sidebar select[name="owner_id"]',
+      css:   '.content.active .sidebar select[name="owner_id"]',
       value: '-',
     )
 
@@ -144,7 +144,7 @@ class AgentTicketAutoAssignmentTest < TestCase
     click(css: '.content.active a[href="#settings/ticket"]')
     click(css: '.content.active a[href="#auto_assignment"]')
     switch(
-      css: '.content.active .js-ticketAutoAssignment',
+      css:  '.content.active .js-ticketAutoAssignment',
       type: 'off',
     )
 

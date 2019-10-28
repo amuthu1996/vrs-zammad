@@ -1,6 +1,9 @@
 class Sessions::Backend::Collections::Base < Sessions::Backend::Base
   class << self; attr_accessor :model, :permissions end
 
+  attr_writer :user
+  attr_writer :time_now
+
   def initialize(user, asset_lookup, client, client_id, ttl)
     @user         = user
     @client       = client
@@ -10,24 +13,23 @@ class Sessions::Backend::Collections::Base < Sessions::Backend::Base
     @last_change  = nil
   end
 
+  def to_run?
+    return true if !@time_now
+    return true if Time.zone.now.to_i > (@time_now + @ttl)
+
+    false
+  end
+
   def load
 
     # get whole collection
     self.class.model.constantize.all.order(id: :asc)
   end
 
-  def client_key
-    "collections::load::#{self.class}::#{@user.id}::#{@client_id}"
-  end
-
   def push
+    return if !to_run?
 
-    # check timeout
-    timeout = Sessions::CacheIn.get(client_key)
-    return if timeout
-
-    # set new timeout
-    Sessions::CacheIn.set(client_key, true, { expires_in: @ttl.seconds })
+    @time_now = Time.zone.now.to_i
 
     # check permission based access
     if self.class.permissions
@@ -37,6 +39,7 @@ class Sessions::Backend::Collections::Base < Sessions::Backend::Base
     # check if update has been done
     last_change = self.class.model.constantize.latest_change
     return if last_change.to_s == @last_change
+
     @last_change = last_change.to_s
 
     # load current data
@@ -51,9 +54,11 @@ class Sessions::Backend::Collections::Base < Sessions::Backend::Base
     end
 
     # collect assets
+    @time_now = Time.zone.now.to_i
     assets = {}
     items.each do |item|
       next if !asset_needed?(item)
+
       assets = asset_push(item, assets)
     end
     if !@client
@@ -61,19 +66,19 @@ class Sessions::Backend::Collections::Base < Sessions::Backend::Base
         collection: {
           items.first.class.to_app_model => all,
         },
-        assets: assets,
+        assets:     assets,
       }
     end
     @client.log "push assets for push_collection #{items.first.class} for user #{@user.id}"
     @client.send(
-      data: assets,
+      data:  assets,
       event: 'loadAssets',
     )
 
     @client.log "push push_collection #{items.first.class} for user #{@user.id}"
     @client.send(
       event: 'resetCollection',
-      data: {
+      data:  {
         items.first.class.to_app_model => all,
       },
     )

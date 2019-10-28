@@ -68,8 +68,11 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
   var Base, Io, Log, Timeout, ZammadChat, myScript, scriptHost, scriptProtocol, scripts;
   scripts = document.getElementsByTagName('script');
   myScript = scripts[scripts.length - 1];
-  scriptHost = myScript.src.match('.*://([^:/]*).*')[1];
-  scriptProtocol = myScript.src.match('(.*)://[^:/]*.*')[1];
+  scriptProtocol = window.location.protocol.replace(':', '');
+  if (myScript && myScript.src) {
+    scriptHost = myScript.src.match('.*://([^:/]*).*')[1];
+    scriptProtocol = myScript.src.match('(.*)://[^:/]*.*')[1];
+  }
   Base = (function() {
     Base.prototype.defaults = {
       debug: false
@@ -367,6 +370,24 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
     ZammadChat.prototype.initialQueueDelay = 10000;
 
     ZammadChat.prototype.translations = {
+      'da': {
+        '<strong>Chat</strong> with us!': '<strong>Chat</strong> med os!',
+        'Scroll down to see new messages': 'Scroll ned for at se nye beskeder',
+        'Online': 'Online',
+        'Offline': 'Offline',
+        'Connecting': 'Forbinder',
+        'Connection re-established': 'Forbindelse genoprettet',
+        'Today': 'I dag',
+        'Send': 'Send',
+        'Chat closed by %s': 'Chat lukket af %s',
+        'Compose your message...': 'Skriv en besked...',
+        'All colleagues are busy.': 'Alle kollegaer er optaget.',
+        'You are on waiting list position <strong>%s</strong>.': 'Du er i venteliste som nummer <strong>%s</strong>.',
+        'Start new conversation': 'Start en ny samtale',
+        'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Da du ikke har svaret i de sidste %s minutter er din samtale med <strong>%s</strong> blevet lukket.',
+        'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Da du ikke har svaret i de sidste %s minutter er din samtale blevet lukket.',
+        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Vi beklager, det tager længere end forventet at få en ledig plads. Prøv venligst igen senere eller send os en e-mail. På forhånd tak!'
+      },
       'de': {
         '<strong>Chat</strong> with us!': '<strong>Chatte</strong> mit uns!',
         'Scroll down to see new messages': 'Scrolle nach unten um neue Nachrichten zu sehen',
@@ -402,6 +423,24 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
         'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Puesto que usted no respondió en los últimos %s minutos su conversación con <strong>%s</strong> se ha cerrado.',
         'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Puesto que usted no respondió en los últimos %s minutos su conversación se ha cerrado.',
         'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Lo sentimos, se tarda más tiempo de lo esperado para ser atendido por un agente. Inténtelo de nuevo más tarde o envíenos un correo electrónico. ¡Gracias!'
+      },
+      'fi': {
+        '<strong>Chat</strong> with us!': '<strong>Keskustele</strong> kanssamme!',
+        'Scroll down to see new messages': 'Rullaa alas nähdäksesi uudet viestit',
+        'Online': 'Paikalla',
+        'Offline': 'Poissa',
+        'Connecting': 'Yhdistetään',
+        'Connection re-established': 'Yhteys muodostettu uudelleen',
+        'Today': 'Tänään',
+        'Send': 'Lähetä',
+        'Chat closed by %s': '%s sulki keskustelun',
+        'Compose your message...': 'Luo viestisi...',
+        'All colleagues are busy.': 'Kaikki kollegat ovat varattuja.',
+        'You are on waiting list position <strong>%s</strong>.': 'Olet odotuslistalla sijalla <strong>%s</strong>.',
+        'Start new conversation': 'Aloita uusi keskustelu',
+        'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Koska et vastannut viimeiseen %s minuuttiin, keskustelusi <strong>%s</strong> kanssa suljettiin.',
+        'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Koska et vastannut viimeiseen %s minuuttiin, keskustelusi suljettiin.',
+        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Olemme pahoillamme, tyhjän paikan vapautumisessa kestää odotettua pidempään. Ole hyvä ja yritä myöhemmin uudestaan tai lähetä meille sähköpostia. Kiitos!'
       },
       'fr': {
         '<strong>Chat</strong> with us!': '<strong>Chattez</strong> avec nous!',
@@ -441,21 +480,21 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
       },
       'it': {
         '<strong>Chat</strong> with us!': '<strong>Chatta</strong> con noi!',
-        'Scroll down to see new messages': 'Scorrere verso il basso per vedere i nuovi messaggi',
+        'Scroll down to see new messages': 'Scorri verso il basso per vedere i nuovi messaggi',
         'Online': 'Online',
         'Offline': 'Offline',
-        'Connecting': 'Collegamento',
+        'Connecting': 'Collegamento in corso',
         'Connection re-established': 'Collegamento ristabilito',
         'Today': 'Oggi',
         'Send': 'Invio',
-        'Chat closed by %s': 'Conversazione chiusa da %s',
-        'Compose your message...': 'Comporre il tuo messaggio...',
-        'All colleagues are busy.': 'Tutti i colleghi sono occupati.',
-        'You are on waiting list position <strong>%s</strong>.': 'Siete in posizione lista d\' attesa <strong>%s</strong>.',
-        'Start new conversation': 'Avviare una nuova conversazione',
-        'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Dal momento che non hai risposto negli ultimi %s minuti la tua conversazione con <strong>%s</strong> si è chiusa.',
-        'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Dal momento che non hai risposto negli ultimi %s minuti la tua conversazione si è chiusa.',
-        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Ci dispiace, ci vuole più tempo come previsto per ottenere uno slot vuoto. Per favore riprova più tardi o inviaci un\' e-mail. Grazie!'
+        'Chat closed by %s': 'Chat chiusa da %s',
+        'Compose your message...': 'Componi il tuo messaggio...',
+        'All colleagues are busy.': 'Tutti gli operatori sono occupati.',
+        'You are on waiting list position <strong>%s</strong>.': 'Sei in posizione <strong>%s</strong> nella lista d\'attesa.',
+        'Start new conversation': 'Avvia una nuova chat',
+        'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': 'Dal momento che non hai risposto negli ultimi %s minuti la tua chat con <strong>%s</strong> è stata chiusa.',
+        'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Dal momento che non hai risposto negli ultimi %s minuti la tua chat è stata chiusa.',
+        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'Ci dispiace, ci vuole più tempo del previsto per arrivare al tuo turno. Per favore riprova più tardi o inviaci un\'email. Grazie!'
       },
       'pl': {
         '<strong>Chat</strong> with us!': '<strong>Czatuj</strong> z nami!',
@@ -510,6 +549,24 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
         'Since you didn\'t respond in the last %s minutes your conversation with <strong>%s</strong> got closed.': '由於你超過 %s 分鐘沒有回應, 你與 <strong>%s</strong> 的對話已被關閉.',
         'Since you didn\'t respond in the last %s minutes your conversation got closed.': '由於你超過 %s 分鐘沒有任何回應, 該對話已被關閉.',
         'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': '非常抱歉, 當前需要等候更長的時間方可排入對話程序, 請稍後重試或向我們寄送電子郵件. 謝謝!'
+      },
+      'ru': {
+        '<strong>Chat</strong> with us!': 'Напишите нам!',
+        'Scroll down to see new messages': 'Прокрутите, чтобы увидеть новые сообщения',
+        'Online': 'Онлайн',
+        'Offline': 'Оффлайн',
+        'Connecting': 'Подключение',
+        'Connection re-established': 'Подключение восстановлено',
+        'Today': 'Сегодня',
+        'Send': 'Отправить',
+        'Chat closed by %s': '%s закрыл чат',
+        'Compose your message...': 'Напишите сообщение...',
+        'All colleagues are busy.': 'Все сотрудники заняты',
+        'You are on waiting list position %s.': 'Вы в списке ожидания под номером %s',
+        'Start new conversation': 'Начать новую переписку.',
+        'Since you didn\'t respond in the last %s minutes your conversation with %s got closed.': 'Поскольку вы не отвечали в течение последних %s минут, ваш разговор с %s был закрыт.',
+        'Since you didn\'t respond in the last %s minutes your conversation got closed.': 'Поскольку вы не отвечали в течение последних %s минут, ваш разговор был закрыт.',
+        'We are sorry, it takes longer as expected to get an empty slot. Please try again later or send us an email. Thank you!': 'К сожалению, ожидание свободного места требует больше времени. Повторите попытку позже или отправьте нам электронное письмо. Спасибо!'
       }
     };
 
@@ -1149,6 +1206,7 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
       }
       this.isOpen = true;
       this.log.debug('open widget');
+      this.show();
       if (!this.sessionId) {
         this.showLoader();
       }
@@ -1544,10 +1602,9 @@ var bind = function(fn, me){ return function(){ return fn.apply(me, arguments); 
     };
 
     ZammadChat.prototype.onCssLoaded = function() {
+      this.cssLoaded = true;
       if (this.socketReady) {
         return this.onReady();
-      } else {
-        return this.cssLoaded = true;
       }
     };
 

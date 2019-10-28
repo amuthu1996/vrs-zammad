@@ -1,3 +1,47 @@
+ValidUsersForTicketSelectionMethods =
+  validUsersForTicketSelection: ->
+    items = $('.content.active .table-overview .table').find('[name="bulk"]:checked')
+
+    # we want to display all users for which we can assign the tickets directly
+    # for this we need to get the groups of all selected tickets
+    # after we got those we need to check which users are available in all groups
+    # users that are not in all groups can't get the tickets assigned
+    ticket_ids       = _.map(items, (el) -> $(el).val() )
+    ticket_group_ids = _.map(App.Ticket.findAll(ticket_ids), (ticket) -> ticket.group_id)
+    users            = @usersInGroups(ticket_group_ids)
+
+    # get the list of possible groups for the current user
+    # from the TicketCreateCollection
+    # (filled for e.g. the TicketCreation or TicketZoom assignment)
+    # and order them by name
+    group_ids     = _.keys(@formMeta?.dependencies?.group_id)
+    groups        = App.Group.findAll(group_ids)
+    groups_sorted = _.sortBy(groups, (group) -> group.name)
+
+    # get the number of visible users per group
+    # from the TicketCreateCollection
+    # (filled for e.g. the TicketCreation or TicketZoom assignment)
+    for group in groups
+      group.valid_users_count = @formMeta?.dependencies?.group_id?[group.id]?.owner_id.length || 0
+
+    {
+      users: users
+      groups: groups_sorted
+    }
+
+  usersInGroups: (group_ids) ->
+    ids_by_group = _.chain(@formMeta?.dependencies?.group_id)
+      .pick(group_ids)
+      .values()
+      .map( (e) -> e.owner_id)
+      .value()
+
+    # Underscore's intersection doesn't work when chained
+    ids_in_all_groups = _.intersection(ids_by_group...)
+
+    users = App.User.findAll(ids_in_all_groups)
+    _.sortBy(users, (user) -> user.firstname)
+
 class App.TicketOverview extends App.Controller
   className: 'overviews'
   activeFocus: 'nav'
@@ -25,6 +69,8 @@ class App.TicketOverview extends App.Controller
     'mouseenter .js-batch-hover-target': 'highlightBatchEntry'
     'mouseleave .js-batch-hover-target': 'unhighlightBatchEntry'
 
+  @include ValidUsersForTicketSelectionMethods
+
   constructor: ->
     super
     @batchSupport = @permissionCheck('ticket.agent')
@@ -34,11 +80,16 @@ class App.TicketOverview extends App.Controller
     @bind 'ui:rerender', =>
       @renderBatchOverlay()
 
+    load = (data) =>
+      App.Collection.loadAssets(data.assets)
+      @formMeta = data.form_meta
+    @bindId = App.TicketCreateCollection.bind(load)
+
   startDragItem: (event) =>
     return if !@batchSupport
-    @grabbedItem = $(event.currentTarget)
-    offset = @grabbedItem.offset()
-    @batchDragger = $(App.view('ticket_overview/batch_dragger')())
+    @grabbedItem      = $(event.currentTarget)
+    offset            = @grabbedItem.offset()
+    @batchDragger     = $(App.view('ticket_overview/batch_dragger')())
     @grabbedItemClone = @grabbedItem.clone()
     @grabbedItemClone.data('offset', @grabbedItem.offset())
     @grabbedItemClone.addClass('batch-dragger-item js-main-item')
@@ -413,17 +464,10 @@ class App.TicketOverview extends App.Controller
 
     groupId = @hoveredBatchEntry.attr('data-id')
     group = App.Group.find(groupId)
-    users = []
-
-    for user_id in _.uniq(group.user_ids)
-      if App.User.exists(user_id)
-        user = App.User.find(user_id)
-        if user.active is true
-          users.push user
 
     @batchAssignGroupName.text group.displayName()
     @batchAssignGroupInner.html $(App.view('ticket_overview/batch_overlay_user_group')(
-      users: users
+      users: @usersInGroups([groupId])
       groups: []
       groupId: groupId
     ))
@@ -589,49 +633,44 @@ class App.TicketOverview extends App.Controller
     @refreshElements()
 
   renderOptions: =>
-    macros = App.Macro.findAllByAttribute('active', true)
-    groups = App.Group.findAllByAttribute('active', true)
-    users = []
+    @renderOptionsGroups()
+    @renderOptionsMacros()
+
+  renderOptionsGroups: =>
+    @batchAssignInner.html $(App.view('ticket_overview/batch_overlay_user_group')(
+      @validUsersForTicketSelection()
+    ))
+
+  renderOptionsMacros: =>
+
+    @possibleMacros = []
+    macros          = App.Macro.search(filter: { active: true }, sortBy:'name', order:'DESC')
+
     items = @el.find('[name="bulk"]:checked')
 
-    # find all possible owners for selected tickets
-    possibleUsers = {}
-    possibleUserGroups = {}
+    group_ids =[]
     for item in items
-      #console.log "selected items with id ", $(item).val()
       ticket = App.Ticket.find($(item).val())
-      if !possibleUserGroups[ticket.group_id.toString()]
-        group = App.Group.find(ticket.group_id)
-        for user_id in group.user_ids
-          if !possibleUserGroups[ticket.group_id.toString()]
-            possibleUsers[user_id.toString()] = true
-          else
-            hit = false
-            for user_id, exists of possibleUsers
-              if possibleUsers[user_id.toString()]
-                hit = true
-            if !hit
-              delete possibleUsers[user_id.toString()]
-        possibleUserGroups[ticket.group_id.toString()] = true
-    for user_id, _exists of possibleUsers
-      if App.User.exists(user_id)
-        user = App.User.find(user_id)
-        if user.active is true
-          users.push user
-    for group in groups
-      valid_user_ids = []
-      for user_id in _.uniq(group.user_ids)
-        if App.User.exists(user_id)
-          if App.User.find(user_id).active is true
-            valid_user_ids.push user_id
-      group.valid_user_ids = valid_user_ids
+      group_ids.push ticket.group_id
 
-    @batchAssignInner.html $(App.view('ticket_overview/batch_overlay_user_group')(
-      users: users
-      groups: groups
-    ))
+    group_ids = _.uniq(group_ids)
+
+    for macro in macros
+
+      # push if no group_ids exists
+      if _.isEmpty(macro.group_ids) && !_.includes(@possibleMacros, macro)
+        @possibleMacros.push macro
+
+      # push if group_ids are equal
+      if _.isEqual(macro.group_ids, group_ids) && !_.includes(@possibleMacros, macro)
+        @possibleMacros.push macro
+
+      # push if all group_ids of tickets are in macro.group_ids
+      if !_.isEmpty(macro.group_ids) && _.isEmpty(_.difference(group_ids,macro.group_ids)) && !_.includes(@possibleMacros, macro)
+        @possibleMacros.push macro
+
     @batchMacro.html $(App.view('ticket_overview/batch_overlay_macro')(
-      macros: macros
+      macros: @possibleMacros
     ))
 
   active: (state) =>
@@ -655,17 +694,22 @@ class App.TicketOverview extends App.Controller
 
     # build nav bar
     if @navBarController
-      @navBarController.update
+      @navBarController.update(
         view:        @view
         activeState: true
+      )
 
     if @navBarControllerVertical
-      @navBarControllerVertical.update
+      @navBarControllerVertical.update(
         view:        @view
         activeState: true
+      )
 
     # do not rerender overview if current overview is requested again
-    return if @viewLast is @view
+    if @viewLast is @view
+      if @contentController
+        @contentController.show()
+      return
 
     # remember last view
     @viewLast = @view
@@ -685,6 +729,8 @@ class App.TicketOverview extends App.Controller
       @navBarController.active(false)
     if @navBarControllerVertical
       @navBarControllerVertical.active(false)
+    if @contentController
+      @contentController.hide()
 
   setPosition: (position) =>
     @$('.main').scrollTop(position)
@@ -695,9 +741,10 @@ class App.TicketOverview extends App.Controller
   changed: ->
     false
 
-  release: ->
+  release: =>
     @keyboardOff()
     super
+    App.TicketCreateCollection.unbindById(@bindId)
 
   keyboardOn: =>
     $(window).off 'keydown.overview_navigation'
@@ -911,6 +958,9 @@ class Navbar extends App.Controller
       @autoFoldTabs()
 
 class Table extends App.Controller
+  @extend App.PopoverProvidable
+  @registerPopovers 'Organization', 'User'
+
   events:
     'click [data-type=settings]': 'settings'
     'click [data-type=viewmode]': 'viewmode'
@@ -926,6 +976,14 @@ class Table extends App.Controller
       return if !@authenticateCheck()
       return if !@view
       @render(App.OverviewListCollection.get(@view))
+
+  show: =>
+    if @table
+      @table.show()
+
+  hide: =>
+    if @table
+      @table.hide()
 
   release: =>
     if @bindId
@@ -962,6 +1020,7 @@ class Table extends App.Controller
       overviewAttributes: @overview.view.s
       objects:            ticketListShow
       groupBy:            @overview.group_by
+      groupDirection:     @overview.group_direction
       orderBy:            @overview.order.by
       orderDirection:     @overview.order.direction
     )
@@ -1052,12 +1111,15 @@ class Table extends App.Controller
           show:       true
         )
         @navigate ticket.uiUrl()
+
       callbackTicketTitleAdd = (value, object, attribute, attributes) ->
         attribute.title = object.title
         value
+
       callbackLinkToTicket = (value, object, attribute, attributes) ->
         attribute.link = object.uiUrl()
         value
+
       callbackUserPopover = (value, object, attribute, attributes) ->
         return value if !object
         refObjectId = undefined
@@ -1070,6 +1132,7 @@ class Table extends App.Controller
         attribute.data =
           id: refObjectId
         value
+
       callbackOrganizationPopover = (value, object, attribute, attributes) ->
         return value if !object
         return value if !object.organization_id
@@ -1077,11 +1140,13 @@ class Table extends App.Controller
         attribute.data =
           id: object.organization_id
         value
+
       callbackCheckbox = (id, checked, e) =>
-        if @$('table').find('input[name="bulk"]:checked').length == 0
-          @bulkForm.hide()
-        else
+        if @shouldShowBulkForm()
+          @bulkForm.render()
           @bulkForm.show()
+        else
+          @bulkForm.hide()
 
         if @lastChecked && e.shiftKey
           # check items in a row
@@ -1101,25 +1166,73 @@ class Table extends App.Controller
           items.slice(startId+1, endId).find('[name="bulk"]').prop('checked', (-> !@checked))
 
         @lastChecked = e.currentTarget
+
       callbackIconHeader = (headers) ->
         attribute =
-          name:        'icon'
-          display:     ''
-          translation: false
-          width:       '28px'
-          displayWidth:28
-          unresizable: true
+          name:         'icon'
+          display:      ''
+          translation:  false
+          width:        '28px'
+          displayWidth: 28
+          unresizable:  true
         headers.unshift(0)
         headers[0] = attribute
         headers
+
       callbackIcon = (value, object, attribute, header) ->
         value = ' '
-        attribute.class  = object.iconClass()
-        attribute.link   = ''
-        attribute.title  = object.iconTitle()
+        attribute.class = object.iconClass()
+        attribute.link  = ''
+        attribute.title = object.iconTitle()
         value
 
-      @table = new App.ControllerTable(
+      callbackPriority = (value, object, attribute, header) ->
+        value = ' '
+
+        if object.priority
+          attribute.title = object.priority()
+        else
+          attribute.title = App.i18n.translateInline(App.TicketPriority.findNative(@priority_id)?.displayName())
+        value = object.priorityIcon()
+
+      callbackIconPriorityHeader = (headers) ->
+        attribute =
+          name:         'icon_priority'
+          display:      ''
+          translation:  false
+          width:        '24px'
+          displayWidth: 24
+          unresizable:  true
+        headers.unshift(0)
+        headers[0] = attribute
+        headers
+
+      callbackIconPriority = (value, object, attribute, header) ->
+        value = ' '
+        priority = App.TicketPriority.findNative(object.priority_id)
+        attribute.title = App.i18n.translateInline(priority?.name)
+        value = object.priorityIcon()
+
+      callbackHeader = [ callbackIconHeader ]
+      callbackAttributes =
+        icon:
+          [ callbackIcon ]
+        customer_id:
+          [ callbackUserPopover ]
+        organization_id:
+          [ callbackOrganizationPopover ]
+        owner_id:
+          [ callbackUserPopover ]
+        title:
+          [ callbackLinkToTicket, callbackTicketTitleAdd ]
+        number:
+          [ callbackLinkToTicket, callbackTicketTitleAdd ]
+
+      if App.Config.get('ui_ticket_overview_priority_icon') == true
+        callbackHeader = [ callbackIconHeader, callbackIconPriorityHeader ]
+        callbackAttributes.icon_priority = [ callbackIconPriority ]
+
+      tableArguments =
         tableId:        "ticket_overview_#{@overview.id}"
         overview:       @overview.view.s
         el:             @$('.table-overview')
@@ -1127,9 +1240,10 @@ class Table extends App.Controller
         objects:        ticketListShow
         checkbox:       checkbox
         groupBy:        @overview.group_by
+        groupDirection: @overview.group_direction
         orderBy:        @overview.order.by
         orderDirection: @overview.order.direction
-        class: 'table--light'
+        class:          'table--light'
         bindRow:
           events:
             'click': openTicket
@@ -1137,30 +1251,22 @@ class Table extends App.Controller
         #  customer_id:
         #    events:
         #      'mouseover': popOver
-        callbackHeader: [ callbackIconHeader ]
-        callbackAttributes:
-          icon:
-            [ callbackIcon ]
-          customer_id:
-            [ callbackUserPopover ]
-          organization_id:
-            [ callbackOrganizationPopover ]
-          owner_id:
-            [ callbackUserPopover ]
-          title:
-            [ callbackLinkToTicket, callbackTicketTitleAdd ]
-          number:
-            [ callbackLinkToTicket, callbackTicketTitleAdd ]
+        callbackHeader: callbackHeader
+        callbackAttributes: callbackAttributes
         bindCheckbox:
           events:
             'click': callbackCheckbox
-      )
+          select_all: callbackCheckbox
 
-    # start user popups
-    @userPopups()
+      # remember elWidth even if table is not shown but rerendered
+      if @el.width() != 0
+        @elWidth = @el.width()
+      if @elWidth
+        tableArguments.availableWidth = @elWidth
 
-    # start organization popups
-    @organizationPopups()
+      @table = new App.ControllerTable(tableArguments)
+
+    @renderPopovers()
 
     @bulkForm = new BulkForm(
       holder: @el
@@ -1174,11 +1280,11 @@ class Table extends App.Controller
 
     # show/hide bulk action
     @$('.table-overview').delegate('input[name="bulk"], input[name="bulk_all"]', 'change', (e) =>
-      if @$('.table-overview').find('input[name="bulk"]:checked').length == 0
+      if @shouldShowBulkForm()
+        @bulkForm.show()
+      else
         @bulkForm.hide()
         @bulkForm.reset()
-      else
-        @bulkForm.show()
     )
 
     # deselect bulk_all if one item is uncheck observ
@@ -1197,6 +1303,17 @@ class Table extends App.Controller
           bulkAll.prop('checked', false)
           bulkAll.prop('indeterminate', true)
     )
+
+  shouldShowBulkForm: =>
+    items = @$('table').find('input[name="bulk"]:checked')
+    return false if items.length == 0
+
+    ticket_ids        = _.map(items, (el) -> $(el).val() )
+    ticket_group_ids  = _.map(App.Ticket.findAll(ticket_ids), (ticket) -> ticket.group_id)
+    ticket_group_ids  = _.uniq(ticket_group_ids)
+    allowed_group_ids = App.User.find(@Session.get('id')).allGroupIds('change')
+    allowed_group_ids = _.map(allowed_group_ids, (id_string) -> parseInt(id_string, 10) )
+    _.every(ticket_group_ids, (id) -> id in allowed_group_ids)
 
   viewmode: (e) =>
     e.preventDefault()
@@ -1223,6 +1340,8 @@ class BulkForm extends App.Controller
     'click .js-submit':  'submit'
     'click .js-confirm': 'confirm'
     'click .js-cancel':  'reset'
+
+  @include ValidUsersForTicketSelectionMethods
 
   constructor: ->
     super
@@ -1256,6 +1375,12 @@ class BulkForm extends App.Controller
     @html(App.view('agent_ticket_view/bulk')())
 
     handlers = @Config.get('TicketZoomFormHandler')
+
+    for attribute in @configure_attributes_ticket
+      continue if attribute.name != 'owner_id'
+      {users, groups} = @validUsersForTicketSelection()
+      options = _.map(users, (user) -> {value: user.id, name: user.displayName()} )
+      attribute.possible_groups_owners = options
 
     new App.ControllerForm(
       el: @$('#form-ticket-bulk')
@@ -1522,7 +1647,7 @@ class App.OverviewSettings extends App.ControllerModal
     },
     {
       name:      'order::direction'
-      display:   'Direction'
+      display:   'Order by Direction'
       tag:       'select'
       default:   @overview.order.direction
       null:      false
@@ -1540,7 +1665,18 @@ class App.OverviewSettings extends App.ControllerModal
       nulloption: true
       translate:  true
       options:    App.Overview.groupByAttributes()
-    })
+    },
+    {
+      name:    'group_direction'
+      display: 'Group by Direction'
+      tag:     'select'
+      default: @overview.group_direction
+      null:    false
+      translate: true
+      options:
+        ASC:   'up'
+        DESC:  'down'
+    },)
 
     controller = new App.ControllerForm(
       model:     { configure_attributes: @configure_attributes_article }
@@ -1563,6 +1699,10 @@ class App.OverviewSettings extends App.ControllerModal
 
     if @overview.order.direction isnt params.order.direction
       @overview.order.direction = params.order.direction
+      @reload_needed = true
+
+    if @overview.group_direction isnt params.group_direction
+      @overview.group_direction = params.group_direction
       @reload_needed = true
 
     for key, value of params.view

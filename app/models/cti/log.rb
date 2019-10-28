@@ -1,27 +1,30 @@
 module Cti
   class Log < ApplicationModel
+    include HasSearchIndexBackend
+
     self.table_name = 'cti_logs'
 
     store :preferences
 
-    after_create :push_event, :push_caller_list
-    after_update :push_event, :push_caller_list
-    after_destroy :push_event, :push_caller_list
+    validates :state, format: { with: /\A(newCall|answer|hangup)\z/,  message: 'newCall|answer|hangup is allowed' }
+
+    after_commit :push_caller_list_update
 
 =begin
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '007',
-    from_comment: 'AAA',
+    from_comment: '',
     to: '008',
     to_comment: 'BBB',
     call_id: '1',
     comment: '',
     state: 'newCall',
+    done: true,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '007',
     from_comment: '',
@@ -30,9 +33,10 @@ module Cti
     call_id: '2',
     comment: '',
     state: 'answer',
+    done: true,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '009',
     from_comment: '',
@@ -41,17 +45,18 @@ module Cti
     call_id: '3',
     comment: '',
     state: 'hangup',
+    done: true,
   )
 
 example data, can be used for demo
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: 'Bob Smith',
-    call_id: '00001',
+    call_id: '435452113',
     comment: '',
     state: 'newCall',
     done: false,
@@ -64,20 +69,30 @@ example data, can be used for demo
           object: 'User',
           o_id: 2,
           user_id: 2,
-        }
+        },
+        {
+          caller_id: '4930726128135',
+          comment: nil,
+          level: 'maybe',
+          object: 'User',
+          o_id: 2,
+          user_id: 3,
+        },
       ]
-    }
+    },
+    created_at: Time.zone.now,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'out',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: 'Bob Smith',
-    call_id: '00002',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'newCall',
+    done: true,
     preferences: {
       to: [
         {
@@ -89,18 +104,20 @@ example data, can be used for demo
           user_id: 2,
         }
       ]
-    }
+    },
+    created_at: Time.zone.now - 20.seconds,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: 'Bob Smith',
-    call_id: '00003',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'answer',
+    done: true,
     preferences: {
       from: [
         {
@@ -112,16 +129,20 @@ example data, can be used for demo
           user_id: 2,
         }
       ]
-    }
+    },
+    initialized_at: Time.zone.now - 20.seconds,
+    start_at: Time.zone.now - 30.seconds,
+    duration_waiting_time: 20,
+    created_at: Time.zone.now - 20.seconds,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: 'Bob Smith',
-    call_id: '00004',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'hangup',
     comment: 'normalClearing',
@@ -137,20 +158,27 @@ example data, can be used for demo
           user_id: 2,
         }
       ]
-    }
+    },
+    initialized_at: Time.zone.now - 80.seconds,
+    start_at: Time.zone.now - 45.seconds,
+    end_at: Time.zone.now,
+    duration_waiting_time: 35,
+    duration_talking_time: 45,
+    created_at: Time.zone.now - 80.seconds,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: 'Bob Smith',
-    call_id: '00005',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'hangup',
-    start: Time.zone.now - 15.seconds,
-    'end': Time.zone.now,
+    done: true,
+    start_at: Time.zone.now - 15.seconds,
+    end_at: Time.zone.now,
     preferences: {
       from: [
         {
@@ -162,20 +190,27 @@ example data, can be used for demo
           user_id: 2,
         }
       ]
-    }
+    },
+    initialized_at: Time.zone.now - 5.minutes,
+    start_at: Time.zone.now - 3.minutes,
+    end_at: Time.zone.now - 20.seconds,
+    duration_waiting_time: 120,
+    duration_talking_time: 160,
+    created_at: Time.zone.now - 5.minutes,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: '',
-    call_id: '00006',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'hangup',
-    start: Time.zone.now - 15.seconds,
-    'end': Time.zone.now,
+    done: true,
+    start_at: Time.zone.now - 15.seconds,
+    end_at: Time.zone.now,
     preferences: {
       from: [
         {
@@ -187,20 +222,27 @@ example data, can be used for demo
           user_id: 2,
         }
       ]
-    }
+    },
+    initialized_at: Time.zone.now - 60.minutes,
+    start_at: Time.zone.now - 59.minutes,
+    end_at: Time.zone.now - 2.minutes,
+    duration_waiting_time: 60,
+    duration_talking_time: 3420,
+    created_at: Time.zone.now - 60.minutes,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     from_comment: 'Franz Bauer',
     to: '4930609811111',
     to_comment: 'Bob Smith',
-    call_id: '00007',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'hangup',
-    start: Time.zone.now - 15.seconds,
-    'end': Time.zone.now,
+    done: true,
+    start_at: Time.zone.now - 15.seconds,
+    end_at: Time.zone.now,
     preferences: {
       from: [
         {
@@ -212,38 +254,51 @@ example data, can be used for demo
           user_id: 2,
         }
       ]
-    }
+    },
+    initialized_at: Time.zone.now - 240.minutes,
+    start_at: Time.zone.now - 235.minutes,
+    end_at: Time.zone.now - 222.minutes,
+    duration_waiting_time: 300,
+    duration_talking_time: 1080,
+    created_at: Time.zone.now - 240.minutes,
   )
 
-  Cti::Log.create(
+  Cti::Log.create!(
     direction: 'in',
     from: '4930609854180',
     to: '4930609811112',
-    call_id: '00008',
+    call_id: rand(999_999_999),
     comment: '',
     state: 'hangup',
-    start: Time.zone.now - 20.seconds,
-    'end': Time.zone.now,
-    preferences: {}
+    done: true,
+    start_at: Time.zone.now - 20.seconds,
+    end_at: Time.zone.now,
+    preferences: {},
+    initialized_at: Time.zone.now - 1440.minutes,
+    start_at: Time.zone.now - 1430.minutes,
+    end_at: Time.zone.now - 1429.minutes,
+    duration_waiting_time: 600,
+    duration_talking_time: 660,
+    created_at: Time.zone.now - 1440.minutes,
   )
 
 =end
 
 =begin
 
-  Cti::Log.log
+  Cti::Log.log(current_user)
 
 returns
 
   {
-    list: [...]
-    assets: {...}
+    list: [log_record1, log_record2, log_record3],
+    assets: {...},
   }
 
 =end
 
-    def self.log
-      list = Cti::Log.order('created_at DESC, id DESC').limit(60)
+    def self.log(current_user)
+      list = Cti::Log.log_records(current_user)
 
       # add assets
       assets = list.map(&:preferences)
@@ -254,9 +309,28 @@ returns
                    .each.with_object({}) { |user, a| user.assets(a) }
 
       {
-        list: list,
+        list:   list,
         assets: assets,
       }
+    end
+
+=begin
+
+  Cti::Log.log_records(current_user)
+
+returns
+
+  [log_record1, log_record2, log_record3]
+
+=end
+
+    def self.log_records(current_user)
+      cti_config = Setting.get('cti_config')
+      if cti_config[:notify_map].present?
+        return Cti::Log.where(queue: queues_of_user(current_user, cti_config)).order(created_at: :desc).limit(60)
+      end
+
+      Cti::Log.order(created_at: :desc).limit(60)
     end
 
 =begin
@@ -264,21 +338,23 @@ returns
 processes a incoming event
 
 Cti::Log.process(
-  'cause' => '',
-  'event' => 'newCall',
-  'user' => 'user 1',
-  'from' => '4912347114711',
-  'to' => '4930600000000',
-  'callId' => '4991155921769858278-1', # or call_id
-  'direction' => 'in',
+  cause: '',
+  event: 'newCall',
+  user: 'user 1',
+  from: '4912347114711',
+  to: '4930600000000',
+  callId: '43545211', # or call_id
+  direction: 'in',
+  queue: 'helpdesk', # optional
 )
 
 =end
 
     def self.process(params)
-      comment = params['cause']
+      cause   = params['cause']
       event   = params['event']
       user    = params['user']
+      queue   = params['queue']
       call_id = params['callId'] || params['call_id']
       if user.class == Array
         user = user.join(', ')
@@ -287,85 +363,113 @@ Cti::Log.process(
       from_comment = nil
       to_comment = nil
       preferences = nil
+      done = true
       if params['direction'] == 'in'
-        to_comment = user
+        if user.present?
+          to_comment = user
+        elsif queue.present?
+          to_comment = queue
+        end
         from_comment, preferences = CallerId.get_comment_preferences(params['from'], 'from')
+        if queue.blank?
+          queue = params['to']
+        end
       else
         from_comment = user
         to_comment, preferences = CallerId.get_comment_preferences(params['to'], 'to')
+        if queue.blank?
+          queue = params['from']
+        end
       end
+
+      log = find_by(call_id: call_id)
 
       case event
       when 'newCall'
-        create(
-          direction: params['direction'],
-          from: params['from'],
-          from_comment: from_comment,
-          to: params['to'],
-          to_comment: to_comment,
-          call_id: call_id,
-          comment: comment,
-          state: event,
-          preferences: preferences,
+        if params['direction'] == 'in'
+          done = false
+        end
+        raise "call_id #{call_id} already exists!" if log
+
+        log = create(
+          direction:      params['direction'],
+          from:           params['from'],
+          from_comment:   from_comment,
+          to:             params['to'],
+          to_comment:     to_comment,
+          call_id:        call_id,
+          comment:        cause,
+          queue:          queue,
+          state:          event,
+          initialized_at: Time.zone.now,
+          preferences:    preferences,
+          done:           done,
         )
       when 'answer'
-        log = find_by(call_id: call_id)
         raise "No such call_id #{call_id}" if !log
-        log.state = 'answer'
-        log.start = Time.zone.now
-        if user
-          log.to_comment = user
+        return if log.state == 'hangup' # call is already hangup, ignore answer
+
+        log.with_lock do
+          log.state = 'answer'
+          log.start_at = Time.zone.now
+          log.duration_waiting_time = log.start_at.to_i - log.initialized_at.to_i
+          if user
+            log.to_comment = user
+          end
+          log.done = true
+          log.comment = cause
+          log.save
         end
-        log.comment = comment
-        log.save
       when 'hangup'
-        log = find_by(call_id: call_id)
         raise "No such call_id #{call_id}" if !log
-        if params['direction'] == 'in' && log.state == 'newCall'
-          log.done = false
+
+        log.with_lock do
+          log.done = done
+          if params['direction'] == 'in'
+            if log.state == 'newCall' && cause != 'forwarded'
+              log.done = false
+            elsif log.to_comment == 'voicemail'
+              log.done = false
+            end
+          end
+          log.state = 'hangup'
+          log.end_at = Time.zone.now
+          if log.start_at
+            log.duration_talking_time = log.end_at.to_i - log.start_at.to_i
+          elsif !log.duration_waiting_time && log.initialized_at
+            log.duration_waiting_time = log.end_at.to_i - log.initialized_at.to_i
+          end
+          log.comment = cause
+          log.save
         end
-        if params['direction'] == 'in' && log.to_comment == 'voicemail'
-          log.done = false
-        end
-        log.state = 'hangup'
-        log.end = Time.zone.now
-        log.comment = comment
-        log.save
       else
         raise ArgumentError, "Unknown event #{event.inspect}"
       end
+
+      log
     end
 
-    def push_event
-      users = User.with_permissions('cti.agent')
-      users.each do |user|
+    def self.push_caller_list_update?(record)
+      list_ids = Cti::Log.order(created_at: :desc).limit(60).pluck(:id)
+      return true if list_ids.include?(record.id)
 
-        # send notify about event
-        Sessions.send_to(
-          user.id,
-          {
-            event: 'cti_event',
-            data: self,
-          },
-        )
-      end
+      false
     end
 
-    def push_caller_list
-      list = Cti::Log.log
+    def push_caller_list_update
+      return false if !Cti::Log.push_caller_list_update?(self)
 
+      # send notify on create/update/delete
       users = User.with_permissions('cti.agent')
       users.each do |user|
-
-        # send notify on create/update/delete
         Sessions.send_to(
           user.id,
           {
             event: 'cti_list_push',
-            data: list,
           },
         )
       end
+      true
     end
 
 =begin
@@ -390,7 +494,7 @@ optional you can put the max oldest chat entries as argument
     def attributes
       virtual_attributes = {
         'from_pretty' => from_pretty,
-        'to_pretty' => to_pretty,
+        'to_pretty'   => to_pretty,
       }
 
       super.merge(virtual_attributes)
@@ -405,5 +509,54 @@ optional you can put the max oldest chat entries as argument
       parsed = TelephoneNumber.parse(to&.sub(/^\+?/, '+'))
       parsed.send(parsed.valid? ? :international_number : :original_number)
     end
+
+=begin
+
+returns queues of user
+
+  ['queue1', 'queue2'] = Cti::Log.queues_of_user(User.find(123), config)
+
+=end
+
+    def self.queues_of_user(user, config)
+      queues = []
+      config[:notify_map]&.each do |row|
+        next if row[:user_ids].blank?
+        next if !row[:user_ids].include?(user.id.to_s) && !row[:user_ids].include?(user.id)
+
+        queues.push row[:queue]
+      end
+      if user.phone.present?
+        caller_ids = Cti::CallerId.extract_numbers(user.phone)
+        queues = queues.concat(caller_ids)
+      end
+      queues
+    end
+
+=begin
+
+return best customer id of caller log
+
+  log = Cti::Log.find(123)
+  customer_id = log.best_customer_id_of_log_entry
+
+=end
+
+    def best_customer_id_of_log_entry
+      customer_id = nil
+      if preferences[:from].present?
+        preferences[:from].each do |entry|
+          if customer_id.blank?
+            customer_id = entry[:user_id]
+          end
+          next if entry[:level] != 'known'
+
+          customer_id = entry[:user_id]
+          break
+        end
+      end
+      customer_id
+    end
+
   end
 end

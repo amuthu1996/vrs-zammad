@@ -199,7 +199,7 @@ class App.TicketCreate extends App.Controller
 
     if _.isEmpty(params.ticket_id) && _.isEmpty(params.article_id)
       if !_.isEmpty(params.customer_id)
-        @renderQueue(options: { customer_id: params.customer_id })
+        @renderQueue(options: params)
         return
       @renderQueue()
       return
@@ -256,6 +256,8 @@ class App.TicketCreate extends App.Controller
       params = template.options
     else if App.TaskManager.get(@taskKey) && !_.isEmpty(App.TaskManager.get(@taskKey).state)
       params = App.TaskManager.get(@taskKey).state
+      params.attachments = App.TaskManager.get(@taskKey).attachments
+
       if !_.isEmpty(params['form_id'])
         @formId = params['form_id']
 
@@ -308,6 +310,9 @@ class App.TicketCreate extends App.Controller
       form_id: @formId
       model:   App.TicketArticle
       screen:  'create_top'
+      events:
+        'fileUploadStart .richtext': => @submitDisable()
+        'fileUploadStop .richtext': => @submitEnable()
       params:  params
       taskKey: @taskKey
     )
@@ -319,11 +324,12 @@ class App.TicketCreate extends App.Controller
       events:
         'change [name=customer_id]': @localUserInfo
       handlersConfig: handlers
-      filter:         @formMeta.filter
-      formMeta:       @formMeta
-      params:         params
-      noFieldset:     true
-      taskKey:        @taskKey
+      filter:                  @formMeta.filter
+      formMeta:                @formMeta
+      params:                  params
+      noFieldset:              true
+      taskKey:                 @taskKey
+      rejectNonExistentValues: true
     )
     new App.ControllerForm(
       el:             @$('.ticket-form-bottom')
@@ -352,6 +358,7 @@ class App.TicketCreate extends App.Controller
       data:
         config: App.Config.all()
         user: App.Session.get()
+      taskKey: @taskKey
     )
 
     $('#tags').tokenfield()
@@ -375,7 +382,7 @@ class App.TicketCreate extends App.Controller
     @tokanice()
 
   tokanice: ->
-    App.Utils.tokaniceEmails('.content.active input[name=cc]')
+    App.Utils.tokanice('.content.active input[name=cc]', 'email')
 
   localUserInfo: (e) =>
     return if !@sidebarWidget
@@ -503,8 +510,12 @@ class App.TicketCreate extends App.Controller
           if !confirm(App.i18n.translateContent('You use %s in text but no attachment is attached. Do you want to continue?', matchingWord))
             return
 
+    # add sidebar params
+    if @sidebarWidget && @sidebarWidget.postParams
+      @sidebarWidget.postParams(ticket: ticket)
+
     # disable form
-    @formDisable(e)
+    @submitDisable(e)
     ui = @
     ticket.save(
       done: ->
@@ -536,13 +547,25 @@ class App.TicketCreate extends App.Controller
 
       fail: (settings, details) ->
         ui.log 'errors', details
-        ui.formEnable(e)
+        ui.submitEnable(e)
         ui.notify(
           type:    'error'
           msg:     App.i18n.translateContent(details.error_human || details.error || 'Unable to create object!')
           timeout: 6000
         )
     )
+
+  submitDisable: (e) =>
+    if e
+      @formDisable(e)
+      return
+    @formDisable(@$('.js-submit'), 'button')
+
+  submitEnable: (e) =>
+    if e
+      @formEnable(e)
+      return
+    @formEnable(@$('.js-submit'), 'button')
 
 class Router extends App.ControllerPermanent
   requiredPermission: 'ticket.agent'

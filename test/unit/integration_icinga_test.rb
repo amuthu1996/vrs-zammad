@@ -1,4 +1,3 @@
-
 require 'test_helper'
 
 class IntegrationIcingaTest < ActiveSupport::TestCase
@@ -37,7 +36,7 @@ Service: RBL check (Display Name: \"RBL check\")
 Host:    apn4711.dc.example.com (Display Name: \"apn4711.dc.example.com\")
 IPv4:    127.0.0.1="
 
-    ticket_0, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_0, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_0.state.name)
     assert(ticket_0.preferences)
     assert(ticket_0.preferences['icinga'])
@@ -68,7 +67,7 @@ Service: RBL check (Display Name: \"RBL check\")
 Host:    apn4711.dc.example.com (Display Name: \"apn4711.dc.example.com\")
 IPv4:    127.0.0.1="
 
-    ticket_0_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_0_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_0_1.state.name)
     assert(ticket_0_1.preferences)
     assert(ticket_0_1.preferences['icinga'])
@@ -99,7 +98,7 @@ Service: RBL check (Display Name: \"RBL check\")
 Host:    apn4711.dc.example.com (Display Name: \"apn4711.dc.example.com\")
 IPv4:    127.0.0.1="
 
-    ticket_0_2, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_0_2, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('closed', ticket_0_2.state.name)
     assert(ticket_0_2.preferences)
     assert(ticket_0_2.preferences['icinga'])
@@ -135,7 +134,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_1.state.name)
     assert(ticket_1.preferences)
     assert(ticket_1.preferences['icinga'])
@@ -169,7 +168,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_2, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_2, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_2.state.name)
     assert(ticket_2.preferences)
     assert(ticket_2.preferences['icinga'])
@@ -178,7 +177,7 @@ Comment: [] =
     assert_equal('WARNING', ticket_2.preferences['icinga']['state'])
     assert_not_equal(ticket_2.id, ticket_1.id)
 
-    # matching sender - follow up - CPU Load/host.internal.loc
+    # matching sender - follow-up - CPU Load/host.internal.loc
     email_raw_string = "To: support@example.com
 Subject: PROBLEM - host.internal.loc - CPU Load is WARNING
 User-Agent: Heirloom mailx 12.5 7/5/10
@@ -204,7 +203,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_1_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_1_1.state.name)
     assert(ticket_1_1.preferences)
     assert(ticket_1_1.preferences['icinga'])
@@ -213,7 +212,7 @@ Comment: [] =
     assert_equal('WARNING', ticket_1_1.preferences['icinga']['state'])
     assert_equal(ticket_1.id, ticket_1_1.id)
 
-    # matching sender - follow up - recovery - CPU Load/host.internal.loc
+    # matching sender - follow-up - recovery - CPU Load/host.internal.loc
     email_raw_string = "To: support@example.com
 Subject: PROBLEM - host.internal.loc - CPU Load is WARNING
 User-Agent: Heirloom mailx 12.5 7/5/10
@@ -239,7 +238,7 @@ Additional Info: OK - load average: 1.62, 1.17, 0.49
 Comment: [] =
 "
 
-    ticket_1_2, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1_2, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal(ticket_1.id, ticket_1_2.id)
     assert_equal('closed', ticket_1_2.state.name)
     assert(ticket_1_2.preferences)
@@ -272,7 +271,7 @@ Additional Info: CRITICAL - Host Unreachable (127.0.0.1)
 
 Comment: [] =
 "
-    ticket_3, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_3, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_3.state.name)
     assert(ticket_3.preferences)
     assert(ticket_3.preferences['icinga'])
@@ -305,7 +304,7 @@ Additional Info: PING OK - Packet loss = 0%, RTA = 21.37 ms
 
 Comment: [] =
 "
-    ticket_3_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_3_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal(ticket_3.id, ticket_3_1.id)
     assert_equal('closed', ticket_3_1.state.name)
     assert(ticket_3_1.preferences)
@@ -330,7 +329,7 @@ Service: Ping IPv4
 Host:    apn4711.dc.example.com
 IPv4:    127.0.0.1="
 
-    ticket_4, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_4, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_4.state.name)
     assert(ticket_4.preferences)
     assert(ticket_4.preferences['icinga'])
@@ -355,7 +354,7 @@ Service: Ping IPv4
 Host:    apn4711.dc.example.com
 IPv4:    127.0.0.1="
 
-    ticket_4_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_4_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal(ticket_4.id, ticket_4_1.id)
     assert_equal('closed', ticket_4_1.state.name)
     assert(ticket_4_1.preferences)
@@ -384,7 +383,7 @@ When:    2017-09-29 14:19:40 +0200
 Host:    apn4709.dc.example.com
 IPv4:=09 127.0.0.1="
 
-    ticket_5, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_5, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_5.state.name)
     assert(ticket_5.preferences)
     assert(ticket_5.preferences['icinga'])
@@ -412,7 +411,7 @@ When:    2017-09-29 14:23:36 +0200
 Host:    apn4709.dc.example.com
 IPv4:=09 127.0.0.1=
 "
-    ticket_5_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_5_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal(ticket_5.id, ticket_5_1.id)
     assert_equal('closed', ticket_5_1.state.name)
     assert(ticket_5_1.preferences)
@@ -451,7 +450,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_p, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_p, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_p.state.name)
     assert(ticket_p.preferences)
     assert_not(ticket_p.preferences['icinga'])
@@ -484,7 +483,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_p, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_p, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_p.state.name)
     assert(ticket_p.preferences)
     assert_not(ticket_p.preferences['icinga'])
@@ -515,7 +514,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_p, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_p, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_p.state.name)
     assert(ticket_p.preferences)
     assert_not(ticket_p.preferences['icinga'])
@@ -523,7 +522,7 @@ Comment: [] =
 
   test 'matching sender tests' do
 
-    # matching sender - follow up - CPU Load/host.internal.loc
+    # matching sender - follow-up - CPU Load/host.internal.loc
     email_raw_string = "To: support@example.com
 Subject: PROBLEM - host.internal.loc - CPU Load is WARNING
 User-Agent: Heirloom mailx 12.5 7/5/10
@@ -549,7 +548,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_1_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_1_1.state.name)
     assert(ticket_1_1.preferences)
     assert(ticket_1_1.preferences['icinga'])
@@ -585,7 +584,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_1_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_1_1.state.name)
     assert(ticket_1_1.preferences)
     assert(ticket_1_1.preferences['icinga'])
@@ -621,7 +620,7 @@ Additional Info: WARNING - load average: 3.44, 0.99, 0.35
 Comment: [] =
 "
 
-    ticket_1_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_1_1.state.name)
     assert(ticket_1_1.preferences)
     assert(ticket_1_1.preferences['icinga'])
@@ -657,7 +656,7 @@ Additional Info: PING OK - Packet loss = 0%, RTA = 21.37 ms
 
 Comment: [] =
 "
-    ticket_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     ticket_count = Ticket.count
     assert_not(ticket_1)
     assert_equal(ticket_count, Ticket.count)
@@ -699,7 +698,7 @@ Host:    Awesell
 IPv4:	 192.168.1.8
 
 ------MIME delimiter for sendEmail-587258.191387267--'
-    ticket_0, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_0, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('new', ticket_0.state.name)
     assert(ticket_0.preferences)
     assert(ticket_0.preferences['icinga'])
@@ -740,10 +739,57 @@ IPv4:	 192.168.1.8
 
 ------MIME delimiter for sendEmail-322998.239033954--
     '
-    ticket_1, article_p, user_p, mail = Channel::EmailParser.new.process({}, email_raw_string)
+    ticket_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
     assert_equal('closed', ticket_1.state.name)
     assert(ticket_1.preferences)
     assert(ticket_1.preferences['icinga'])
     assert_equal('DOWN', ticket_1.preferences['icinga']['state'])
+
+  end
+
+  test 'match also values without new line at the end of a line' do
+
+    email_raw_string = 'Return-Path: <icinga2@monitoring.example.com>
+Date: Tue, 21 Aug 2018 03:05:01 +0200
+To: hostmaster@example.com
+Subject: [PROBLEM] OS Updates (yum) on host.example.com is CRITICAL!
+User-Agent: Heirloom mailx 12.5 7/5/10
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: quoted-printable
+Message-Id: <20180821010501.4A182846DBA@monitoring.example.com>
+From: icinga2@monitoring.example.com (icinga)
+
+***** Service Monitoring on monitoring.example.com *****
+
+OS Updates (yum) on host.example.com is CRITICAL!
+
+Info:    CHECK_UPDATES CRITICAL - 12 non-critical updates available=20
+audit-libs.x86_64
+dracut.x86_64
+initscripts.x86_64
+kpartx.x86_64
+libblkid.x86_64
+libmount.x86_64
+libuuid.x86_64
+mariadb-libs.x86_64
+systemd.x86_64
+systemd-libs.x86_64
+systemd-sysv.x86_64
+util-linux.x86_64
+
+When:    2018-08-21 03:05:01 +0200
+Service: OS Updates (yum)
+Host:    host.example.com'
+
+    ticket_1, _article_p, _user_p, _mail = Channel::EmailParser.new.process({}, email_raw_string)
+    assert_equal('new', ticket_1.state.name)
+    assert(ticket_1.preferences)
+    assert(ticket_1.preferences['icinga'])
+    assert_equal('CRITICAL', ticket_1.preferences['icinga']['state'])
+    assert_equal('CHECK_UPDATES CRITICAL - 12 non-critical updates available', ticket_1.preferences['icinga']['info'])
+    assert_equal('OS Updates (yum)', ticket_1.preferences['icinga']['service'])
+    assert_equal('host.example.com', ticket_1.preferences['icinga']['host'])
+
   end
 end

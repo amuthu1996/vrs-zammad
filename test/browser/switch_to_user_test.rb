@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class SwitchToUserTest < TestCase
@@ -29,11 +28,11 @@ class SwitchToUserTest < TestCase
     sleep 3
 
     watch_for(
-      css: '.switchBackToUser',
+      css:   '.switchBackToUser',
       value: 'zammad looks like',
     )
     watch_for(
-      css: '.switchBackToUser',
+      css:   '.switchBackToUser',
       value: 'Nicole',
     )
     login = @browser.find_elements({ css: '.user-menu .user a' })[0].attribute('title')

@@ -20,14 +20,13 @@
 
     this.options    = $.extend({}, defaults, options)
 
-    this._defaults  = defaults
-    this._name      = pluginName
+    this._defaults   = defaults
+    this._name       = pluginName
+    this._fixedWidth = true
 
     this.collection = []
     this.active     = false
     this.buffer     = ''
-
-    this._width = 380
 
     // check if ce exists
     if ( $.data(element, 'plugin_ce') ) {
@@ -69,18 +68,18 @@
       if (e.keyCode === 13) {
         e.preventDefault()
         e.stopPropagation()
-        var id = this.$widget.find('.dropdown-menu li.is-active').data('id')
+        var elem = this.$widget.find('.dropdown-menu li.is-active')[0]
 
         // as fallback use hovered element
-        if (!id) {
-          id = this.$widget.find('.dropdown-menu li:hover').data('id')
+        if (!elem) {
+          elem = this.$widget.find('.dropdown-menu li:hover')[0]
         }
 
         // as fallback first element
-        if (!id) {
-          id = this.$widget.find('.dropdown-menu li:first-child').data('id')
+        if (!elem) {
+          elem = this.$widget.find('.dropdown-menu li:first-child')[0]
         }
-        this.take(id)
+        this.take(elem)
         return
       }
 
@@ -133,8 +132,9 @@
     // backspace
     if (e.keyCode === 8 && this.buffer) {
 
+      var trigger = this.findTrigger(this.buffer)
       // backspace + buffer === :: -> close textmodule
-      if (this.buffer === '::') {
+      if (trigger && trigger.trigger === this.buffer) {
         this.close(true)
         e.preventDefault()
         return
@@ -144,7 +144,7 @@
       var length   = this.buffer.length
       this.buffer = this.buffer.substr(0, length-1)
       this.log('BS backspace', this.buffer)
-      this.result(this.buffer.substr(2, length-1))
+      this.result(trigger)
     }
   }
 
@@ -155,41 +155,57 @@
     if (e.keyCode === 16) return
 
     // enter
-    if (e.keyCode === 13) return
+    if (e.keyCode === 13) {
+      this.buffer = ''
+      return
+    }
 
     // arrow keys
     if (e.keyCode === 37 || e.keyCode === 38 || e.keyCode === 39 || e.keyCode === 40) return
 
-    // observer other second key
-    if (this.buffer === ':' && String.fromCharCode(e.which) !== ':') {
-      this.buffer = ''
-    }
+    var newChar = String.fromCharCode(e.which)
 
-    // oberserve second :
-    if (this.buffer === ':' && String.fromCharCode(e.which) === ':') {
-      this.buffer = this.buffer + ':'
+    // observe other keys
+    if (this.hasAvailableTriggers(this.buffer)) {
+      if(this.hasAvailableTriggers(this.buffer + newChar)) {
+        this.buffer = this.buffer + newChar
+      } else if (!this.findTrigger(this.buffer)) {
+        this.buffer = ''
+      }
     }
 
     // oberserve first :
-    if (!this.buffer && String.fromCharCode(e.which) === ':') {
-      this.buffer = this.buffer + ':'
+    if (!this.buffer && this.hasAvailableTriggers(newChar)) {
+      this.buffer = this.buffer + newChar
     }
 
-    if (this.buffer && this.buffer.substr(0,2) === '::') {
-
-      var sign = String.fromCharCode(e.which)
-      if ( sign && sign !== ':' && e.which != 8 ) { // 8 == backspace
-        this.buffer = this.buffer + sign
-        //this.log('BUFF ADD', sign, this.buffer, sign.length, e.which)
-      }
+    var trigger = this.findTrigger(this.buffer)
+    if (trigger) {
       this.log('BUFF HINT', this.buffer, this.buffer.length, e.which, String.fromCharCode(e.which))
 
       if (!this.isActive()) {
         this.open()
       }
 
-      this.result(this.buffer.substr(2, this.buffer.length))
+      this.result(trigger)
     }
+  }
+
+  // check if at least one trigger is available with the given prefix
+  Plugin.prototype.hasAvailableTriggers = function(prefix) {
+    var result = _.find(this.helpers, function(helper) {
+      var trigger = helper.trigger
+      return trigger.substr(0, prefix.length) == prefix.substr(0, trigger.length)
+    })
+
+    return result != undefined
+  }
+
+  // find a matching trigger
+  Plugin.prototype.findTrigger = function(string) {
+    return _.find(this.helpers, function(helper) {
+      return helper.trigger == string.substr(0, helper.trigger.length)
+    })
   }
 
   // create base template
@@ -209,19 +225,19 @@
     var top            = -( widgetHeight + height ) + this._position.top
     var start          = this._position.left - 6
     var availableWidth = this.$element.innerWidth()
+    var width          = this.$widget.find('.dropdown-menu').width()
 
     if(rtl){
       start = availableWidth - start
     }
 
     // position the element further left if it would break out of the textarea width
-    if (start + this._width > availableWidth) {
-      start = this.$element.innerWidth() - this._width
+    if (start + width > availableWidth) {
+      start = availableWidth - width
     }
 
     var css = {
-      top: top,
-      width: this._width
+      top: top
     }
 
     css[rtl ? 'right' : 'left'] = start
@@ -344,27 +360,27 @@
 
   Plugin.prototype.onEntryClick = function(event) {
     event.preventDefault()
-    var id = $(event.currentTarget).data('id')
-    this.take(id)
+    this.take(event.currentTarget)
   }
 
   // select text module and insert into text
-  Plugin.prototype.take = function(id) {
-    if (!id) {
+  Plugin.prototype.take = function(elem) {
+    if (!elem) {
       this.close(true)
       return
     }
-    for (var i = 0; i < this.collection.length; i++) {
-      var item = this.collection[i]
-      if (item.id == id) {
-        var content = item.content
-        this.cutInput()
-        this.paste(content)
-        this.close(true)
-        return
-      }
+
+    var trigger = this.findTrigger(this.buffer)
+
+    if (trigger) {
+      var _this     = this;
+
+      trigger.renderValue(this, elem, function(text) {
+        _this.cutInput()
+        _this.paste(text)
+        _this.close(true)
+      })
     }
-    return
   }
 
   Plugin.prototype.getFirstRange = function() {
@@ -381,42 +397,35 @@
   }
 
   // render result
-  Plugin.prototype.result = function(term) {
-    var _this = this
-    var result = _.filter(this.collection, function(item) {
-      var reg = new RegExp(term, 'i')
-      if (item.name && item.name.match(reg)) {
-        return item
-      }
-      if (item.keywords && item.keywords.match(reg)) {
-        return item
-      }
-      return
-    })
+  Plugin.prototype.result = function(trigger) {
+    if (!trigger) return
 
-    result.reverse()
+    var term      = this.buffer.substr(trigger.trigger.length, this.buffer.length)
+    trigger.renderResults(this, term)
+  }
 
-    this.$widget.find('ul').html('')
-    this.log('result', term, result)
+  Plugin.prototype.emptyResultsContainer = function() {
+    this.$widget.find('ul').empty()
+  }
 
-    var elements = $()
+  Plugin.prototype.appendResults = function(collection) {
+    this.$widget.find('ul').append(collection).scrollTop(9999)
+    this.afterResultRendering()
+  }
 
-    for (var i = 0; i < result.length; i++) {
-      var item = result[i]
-      var element = $('<li>')
-      element.attr('data-id', item.id)
-      element.text(item.name)
-      element.addClass('u-clickable u-textTruncate')
-      if (i == result.length-1) {
-        element.addClass('is-active')
+  Plugin.prototype.afterResultRendering = function() {
+    // keep the width of the dropdown the same even when longer items got filtered out
+    if(this._fixedWidth){
+      var elem = this.$widget.find('ul')
+
+      var currentMinWidth = parseInt(elem.css('min-width'))
+      var realWidth       = elem.width()
+
+      if(!currentMinWidth || realWidth > currentMinWidth) {
+        elem.css('min-width', realWidth + 'px')
       }
-      if (item.keywords) {
-        element.append($('<kbd>').text(item.keywords))
-      }
-      elements = elements.add(element)
     }
 
-    this.$widget.find('ul').append(elements).scrollTop(9999)
     this.movePosition()
   }
 
@@ -437,5 +446,145 @@
       }
     });
   }
+
+  function Collection() {}
+
+  Collection.renderValue = function(textmodule, elem, callback) {
+    var id   = $(elem).data('id')
+    var item = _.find(textmodule.collection, function(elem) { return elem.id == id })
+
+    if (!item) return
+
+    callback(item.content)
+  }
+
+  Collection.renderResults = function(textmodule, term) {
+    var reg    = new RegExp(term, 'i')
+    var result = textmodule.collection.filter(function(item) {
+      return (item.name && item.name.match(reg)) || (item.keywords && item.keywords.match(reg))
+    })
+    result.reverse()
+
+    textmodule.emptyResultsContainer()
+
+    var elements = result.map(function(elem, index, array){
+      var element = $('<li>')
+        .attr('data-id', elem.id)
+        .text(elem.name)
+        .addClass('u-clickable u-textTruncate')
+
+      if (index == array.length-1) {
+        element.addClass('is-active')
+      }
+
+      if (elem.keywords) {
+        element.append($('<kbd>').text(elem.keywords))
+      }
+
+      return element
+    })
+
+    textmodule.appendResults(elements)
+  }
+
+  Collection.trigger = '::'
+
+  function KbAnswer() {}
+
+  KbAnswer.renderValue = function(textmodule, elem, callback) {
+    textmodule.emptyResultsContainer()
+
+    var element = $('<li>').text(App.i18n.translateInline('Please wait...'))
+    textmodule.appendResults(element)
+
+    App.Ajax.request({
+      id:   'textmoduleKbAnswer',
+      type: 'GET',
+      url:  $(elem).data('url'),
+      success: function(data, status, xhr) {
+        App.Collection.loadAssets(data.assets)
+
+        var translation = App.KnowledgeBaseAnswerTranslation.find($(elem).data('id'))
+
+        var body = translation.content().bodyWithPublicURLs()
+
+        App.Utils.htmlImage2DataUrlAsync(body, function(output){
+          callback(output)
+        })
+      },
+      error: function(xhr) {
+        callback('')
+      }
+    })
+  }
+
+  KbAnswer.renderResults = function(textmodule, term) {
+    textmodule.emptyResultsContainer()
+
+    if(!term) {
+      var element = $('<li>').text(App.i18n.translateInline('Start typing to search in Knowledge Base...'))
+      textmodule.appendResults(element)
+
+      return
+    }
+
+    var element = $('<li>').text(App.i18n.translateInline('Loading...'))
+    textmodule.appendResults(element)
+
+    App.Delay.set(function() {
+      App.Ajax.request({
+        id:   'textmoduleKbAnswer',
+        type: 'POST',
+        url:  App.Config.get('api_path') + '/knowledge_bases/search',
+        data: JSON.stringify({
+          'query':             term,
+          'flavor':            'agent',
+          'index':             'KnowledgeBase::Answer::Translation',
+          'url_type':          'agent',
+          'highlight_enabled': false
+        }),
+        processData: true,
+        success: function(data, status, xhr) {
+          textmodule.emptyResultsContainer()
+
+          var items = data
+            .result
+            .map(function(elem){
+              if(result = _.find(data.details, function(detailElem) { return detailElem.type == elem.type && detailElem.id == elem.id })) {
+                return {
+                  'name':  result.title,
+                  'value': elem.id,
+                  'url':   result.url
+                }
+              }
+            })
+            .filter(function(elem){ return elem != undefined })
+            .map(function(elem, index, array) {
+              var element = $('<li>')
+                .attr('data-id',  elem.value)
+                .attr('data-url', elem.url)
+                .text(elem.name)
+                .addClass('u-clickable u-textTruncate')
+
+              if (index == array.length-1) {
+                element.addClass('is-active')
+              }
+
+              return element
+            })
+
+          if(items.length == 0) {
+            items.push($('<li>').text(App.i18n.translateInline('No results found')))
+          }
+
+          textmodule.appendResults(items)
+        }
+      })
+    }, 200, 'textmoduleKbAnswerDelay', 'textmodule')
+  }
+
+  KbAnswer.trigger = '??'
+
+  Plugin.prototype.helpers = [Collection, KbAnswer]
 
 }(jQuery, window));

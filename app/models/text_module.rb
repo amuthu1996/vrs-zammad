@@ -13,6 +13,10 @@ class TextModule < ApplicationModel
 
   sanitized_html :content
 
+  csv_delete_possible true
+
+  has_and_belongs_to_many :groups, after_add: :cache_update, after_remove: :cache_update, class_name: 'Group'
+
 =begin
 
 load text modules from online
@@ -23,6 +27,7 @@ load text modules from online
 
   def self.load(locale, overwrite_existing_item = false)
     raise 'Got no locale' if locale.blank?
+
     locale = locale.split(',').first.downcase # in case of accept_language header is given
     url = "https://i18n.zammad.com/api/v1/text_modules/#{locale}"
 
@@ -42,6 +47,7 @@ load text modules from online
         exists = TextModule.find_by(foreign_id: text_module['foreign_id'])
         if exists
           next if !overwrite_existing_item
+
           exists.update!(text_module.symbolize_keys!)
         else
           text_module[:updated_by_id] = 1
@@ -68,6 +74,7 @@ push text_modules to online
     text_modules_to_push = []
     text_modules.each do |text_module|
       next if !text_module.active
+
       text_modules_to_push.push text_module
     end
 
@@ -80,13 +87,13 @@ push text_modules to online
     result = UserAgent.post(
       url,
       {
-        locale: locale,
-        text_modules: text_modules_to_push,
-        fqdn: Setting.get('fqdn'),
+        locale:         locale,
+        text_modules:   text_modules_to_push,
+        fqdn:           Setting.get('fqdn'),
         translator_key: translator_key,
       },
       {
-        json: true,
+        json:         true,
         open_timeout: 6,
         read_timeout: 16,
       }
@@ -95,7 +102,7 @@ push text_modules to online
 
     # set new translator_key if given
     if result.data['translator_key']
-      translator_key = Setting.set('translator_key', result.data['translator_key'])
+      Setting.set('translator_key', result.data['translator_key'])
     end
 
     true
@@ -106,6 +113,7 @@ push text_modules to online
   def validate_content
     return true if content.blank?
     return true if content.match?(/<.+?>/)
+
     content.gsub!(/(\r\n|\n\r|\r)/, "\n")
     self.content = content.text2html
     true

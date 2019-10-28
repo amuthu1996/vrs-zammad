@@ -5,6 +5,23 @@ module ApplicationModel::HasAttachments
   included do
     after_create :attachments_buffer_check
     after_update :attachments_buffer_check
+    after_destroy :attachments_remove_all, if: :attachments_cleanup?
+
+    class_attribute :attachments_cleanup, default: false
+  end
+
+  class_methods do
+=begin
+  mark model for cleaning up after destroying
+=end
+
+    def attachments_cleanup!
+      self.attachments_cleanup = true
+    end
+  end
+
+  def attachments_remove_all
+    attachments.each { |attachment| Store.remove_item(attachment.id) }
   end
 
 =begin
@@ -61,14 +78,13 @@ store attachments for this object
     article_store = []
     attachments_buffer.each do |attachment|
       article_store.push Store.add(
-        object: self.class.to_s,
-        o_id: id,
-        data: attachment.content,
-        filename: attachment.filename,
-        preferences: attachment.preferences,
+        object:        self.class.to_s,
+        o_id:          id,
+        data:          attachment.content,
+        filename:      attachment.filename,
+        preferences:   attachment.preferences,
         created_by_id: created_by_id,
       )
     end
-    attachments_buffer = nil
   end
 end

@@ -8,7 +8,7 @@ module ChecksUserAttributesByCurrentUserPermission
     return true if current_user.permissions?('admin.user')
 
     # non-agents (customers) can't set anything
-    response_access_deny if !current_user.permissions?('ticket.agent')
+    raise Exceptions::NotAuthorized if !current_user.permissions?('ticket.agent')
 
     # regular agents are not allowed to set Groups and Roles
     %w[Role Group].each do |model|
@@ -29,6 +29,7 @@ module ChecksUserAttributesByCurrentUserPermission
     return true if params[:id].present?
     return true if params[:role_ids]
     return true if params[:roles]
+
     params[:role_ids] = Role.signup_role_ids
     true
   end

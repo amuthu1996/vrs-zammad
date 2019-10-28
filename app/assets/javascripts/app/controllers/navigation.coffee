@@ -1,4 +1,7 @@
 class App.Navigation extends App.ControllerWidgetPermanent
+  @extend App.PopoverProvidable
+  @registerAllPopovers()
+
   className: 'navigation vertical'
 
   elements:
@@ -15,9 +18,10 @@ class App.Navigation extends App.ControllerWidgetPermanent
     'focus #global-search': 'searchFocus'
     'blur #global-search': 'searchBlur'
     'keyup #global-search': 'listNavigate'
-    'click .js-global-search-result': 'andClose'
+    'click .js-global-search-result': 'emptyAndCloseDelayed'
     'click .js-details-link': 'openExtendedSearch'
     'change .js-menu .js-switch input': 'switch'
+    'click .js-onclick': 'click'
 
   constructor: ->
     super
@@ -78,7 +82,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
   renderMenu: =>
     items = @getItems(navbar: @Config.get('NavBar'))
 
-    # apply counter and switch info from persistant controllers (if exists)
+    # apply counter and switch info from persistent controllers (if exists)
     activeTab = {}
     itemsNew = []
     for item in items
@@ -94,6 +98,10 @@ class App.Navigation extends App.ControllerWidgetPermanent
             item.switch = worker.switch()
           if worker.active && worker.active()
             activeTab[item.target] = true
+          if worker.onclick
+            item.onclick = worker.onclick()
+          if worker.accessoryIcon
+            item.accessoryIcon = worker.accessoryIcon()
           if worker.featureActive
             if worker.featureActive()
               shown = true
@@ -103,7 +111,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
         itemsNew.push item
     items = itemsNew
 
-    # get open tabs to repopen on rerender
+    # get open tabs to reopen on rerender
     openTab = {}
     @$('.open').children('a').each( (i,d) ->
       href = $(d).attr('href')
@@ -116,6 +124,13 @@ class App.Navigation extends App.ControllerWidgetPermanent
       openTab:   openTab
       activeTab: activeTab
     )
+
+  click: (e) ->
+    @preventDefaultAndStopPropagation(e)
+
+    key    = $(e.currentTarget).data('key')
+    worker = App.TaskManager.worker(key)
+    worker.clicked(e)
 
   #  on switch changes and execute it on controller
   switch: (e) ->
@@ -136,7 +151,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
         item.target = item.child[0].target
         delete item.child
 
-    # get open tabs to repopen on rerender
+    # get open tabs to reopen on rerender
     openTab = {}
     @$('.open').children('a').each( (i,d) ->
       href = $(d).attr('href')
@@ -156,14 +171,19 @@ class App.Navigation extends App.ControllerWidgetPermanent
         type:      'personal'
       )
 
-  renderResult: (result = []) =>
+  renderResult: (result = [], noChange) =>
+    if noChange
+      return
+
+    @removePopovers()
 
     # remove result if not result exists
     if _.isEmpty(result)
-      @searchContainer.removeClass('open')
-      @globalSearch.close()
-      @searchResult.html('')
+      @searchContainer.removeClass('loading').addClass('no-match')
+      @searchResult.html(App.view('navigation/no_result')())
       return
+
+    @searchContainer.removeClass('no-match loading')
 
     # build markup
     html = App.view('navigation/result')(
@@ -171,17 +191,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
     )
     @searchResult.html(html)
 
-    # show result list
-    @searchContainer.addClass('open')
-
-    # start ticket popups
-    @ticketPopups()
-
-    # start user popups
-    @userPopups()
-
-    # start oorganization popups
-    @organizationPopups()
+    @renderPopovers()
 
   render: ->
 
@@ -204,27 +214,23 @@ class App.Navigation extends App.ControllerWidgetPermanent
     $('#app').append @notificationWidget.el
 
   searchFocus: (e) =>
-    @query = '' # reset query cache
+    @clearDelay('emptyAndCloseDelayed')
+    @throttledSearch()
+    App.PopoverProvidable.anyPopoversDestroy()
     @searchContainer.addClass('focused')
-    @anyPopoversDestroy()
-    @search()
+    @selectAll(e)
 
   searchBlur: (e) =>
 
-    # delay to be able to click x
+    # delay to be able to "click/execute" x if query is ''
     update = =>
-      query = @searchInput.val().trim()
-      if !query
+      if @searchInput.val().trim() is ''
         @emptyAndClose()
-        return
-      @searchContainer.removeClass('focused')
-
     @delay(update, 100, 'removeFocused')
 
   listNavigate: (e) =>
     if e.keyCode is 27 # close on esc
       @emptyAndClose()
-      @searchInput.blur()
       return
     else if e.keyCode is 38 # up
       @nudge(e, -1)
@@ -233,14 +239,13 @@ class App.Navigation extends App.ControllerWidgetPermanent
       @nudge(e, 1)
       return
     else if e.keyCode is 13 # enter
-      if @$('.global-search-menu .js-details-link.is-hover').get(0)
-        @openExtendedSearch()
-        return
-      href = @$('.global-search-result .nav-tab.is-hover').attr('href')
-      return if !href
-      @navigate(href)
-      @emptyAndClose()
       @searchInput.blur()
+      href = @$('.global-search-result .nav-tab.is-hover').attr('href')
+      if href
+        @navigate(href)
+        @emptyAndCloseDelayed()
+      else
+        @openExtendedSearch()
       return
 
     # on other keys, show result
@@ -284,28 +289,42 @@ class App.Navigation extends App.ControllerWidgetPermanent
       @scrollToIfNeeded(prev, false)
 
   emptyAndClose: =>
-    @searchInput.val('')
-    @searchContainer.removeClass('filled').removeClass('open').removeClass('focused')
-    @globalSearch.close()
+    @andClose()
+    @andEmpty()
 
-    # remove not needed popovers
-    @delay(@anyPopoversDestroy, 100, 'removePopovers')
+  emptyAndCloseDelayed: =>
+    @andClose()
+    delay = =>
+      @andEmpty()
+    @delay(delay, 60000, 'emptyAndCloseDelayed')
+
+  andEmpty: =>
+    @query = ''
+    @searchInput.val('')
 
   andClose: =>
-    @searchInput.blur()
-    @searchContainer.removeClass('open')
+    @searchContainer.removeClass('focused filled open no-match loading')
     @globalSearch.close()
-    @delay(@anyPopoversDestroy, 100, 'removePopovers')
+    @delayedRemoveAnyPopover()
 
   search: =>
     query = @searchInput.val().trim()
-    return if !query
-    return if query is @query
+    @searchContainer.toggleClass('filled', !!query)
+
+    # if we started a new search and already typed something in
+    if query != '' and @query == ''
+      @searchContainer.addClass('open no-match loading')
+
     @query = query
-    @searchContainer.toggleClass('filled', !!@query)
+
+    if @query == ''
+      @searchContainer.removeClass('open loading')
+      return
+
+    @searchContainer.addClass('open')
     @globalSearch.search(query: @query)
 
-  filterNavbar: (values, user, parent = null) ->
+  filterNavbar: (values, parent = null) ->
     return _.filter values, (item) =>
       if typeof item.callback is 'function'
         data = item.callback() || {}
@@ -313,16 +332,16 @@ class App.Navigation extends App.ControllerWidgetPermanent
           item[key] = value
 
       if !parent? && !item.parent || item.parent is parent
-        return @filterNavbarPermissionOk(item, user) &&
+        return @filterNavbarPermissionOk(item) &&
           @filterNavbarSettingOk(item)
       else
         return false
 
-  filterNavbarPermissionOk: (item, user) ->
+  filterNavbarPermissionOk: (item) ->
     return true unless item.permission
 
-    return _.any item.permission, (permissionName) ->
-      return user && user.permission(permissionName)
+    return _.any item.permission, (permissionName) =>
+      return @permissionCheck(permissionName)
 
   filterNavbarSettingOk: (item) ->
     return true unless item.setting
@@ -336,22 +355,18 @@ class App.Navigation extends App.ControllerWidgetPermanent
     level1 = []
     dropdown = {}
 
-    user = undefined
-    if App.Session.get('id')
-      user = App.User.find(App.Session.get('id'))
-
-    level1 = @filterNavbar(navbar, user)
+    level1 = @filterNavbar(navbar)
 
     for item in navbar
       if item.parent && !dropdown[ item.parent ]
-        dropdown[ item.parent ] = @filterNavbar(navbar, user, item.parent)
+        dropdown[ item.parent ] = @filterNavbar(navbar, item.parent)
 
         for itemLevel1 in level1
           if itemLevel1.target is item.parent
             sub = @getOrder(dropdown[ item.parent ])
             itemLevel1.child = sub
 
-    # clean up, only show navbar items with existing childrens
+    # clean up, only show navbar items with existing children
     clean_list = []
     for item in level1
       if !item.child || item.child && !_.isEmpty(item.child)
@@ -402,11 +417,11 @@ class App.Navigation extends App.ControllerWidgetPermanent
       url = params.url
       type = params.type
     if type is 'menu'
-      @$('.js-menu .is-active, .js-details-link.is-active').removeClass('is-active')
+      @$('.js-menu .is-active').removeClass('is-active')
     else
       @$('.is-active').removeClass('is-active')
     return if !url || url is '#'
-    @$("[href=\"#{url}\"]").addClass('is-active')
+    @$(".js-menu [href=\"#{url}\"], .tasks [href=\"#{url}\"]").addClass('is-active')
 
   recentViewNavbarItemsRebuild: =>
 
@@ -459,7 +474,7 @@ class App.Navigation extends App.ControllerWidgetPermanent
     if e
       e.preventDefault()
     query = @searchInput.val()
-    @searchInput.val('').blur()
+    @emptyAndClose()
     if query
       @navigate("#search/#{encodeURIComponent(query)}")
       return

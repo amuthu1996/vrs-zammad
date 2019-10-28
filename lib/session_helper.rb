@@ -1,8 +1,20 @@
 module SessionHelper
-  def self.default_collections(user, assets = {})
+  def self.json_hash(user)
+    collections, assets = default_collections(user)
+
+    {
+      session:     user,
+      models:      models(user),
+      collections: collections,
+      assets:      assets,
+    }
+  end
+
+  def self.default_collections(user)
 
     # auto population collections, store all here
     default_collection = {}
+    assets = user.assets({})
 
     # load collections to deliver from external files
     dir = File.expand_path('..', __dir__)
@@ -40,12 +52,13 @@ module SessionHelper
   end
 
   def self.list(limit = 10_000)
-    ActiveRecord::SessionStore::Session.order('updated_at DESC').limit(limit)
+    ActiveRecord::SessionStore::Session.order(updated_at: :desc).limit(limit)
   end
 
   def self.destroy(id)
     session = ActiveRecord::SessionStore::Session.find_by(id: id)
     return if !session
+
     session.destroy
   end
 end

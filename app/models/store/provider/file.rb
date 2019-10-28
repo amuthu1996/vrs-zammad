@@ -7,6 +7,17 @@ class Store::Provider::File
     # install file
     location = get_location(sha)
     permission = '600'
+
+    # verify if file already is in file system and if it's not corrupt
+    if File.exist?(location)
+      begin
+        get(sha)
+      rescue
+        delete(sha)
+      end
+    end
+
+    # write file to file system
     if !File.exist?(location)
       Rails.logger.debug { "storge write '#{location}' (#{permission})" }
       file = File.new(location, 'wb')
@@ -31,6 +42,7 @@ class Store::Provider::File
     if !File.exist?(location)
       raise "ERROR: No such file #{location}"
     end
+
     data    = File.open(location, 'rb')
     content = data.read
 
@@ -39,6 +51,7 @@ class Store::Provider::File
     if local_sha != sha
       raise "ERROR: Corrupt file in fs #{location}, sha should be #{sha} but is #{local_sha}"
     end
+
     content
   end
 
@@ -56,6 +69,8 @@ class Store::Provider::File
       local_location = locations[0, count].join('/')
       break if local_location.match?(%r{storage/fs/{0,4}$})
       break if Dir["#{local_location}/*"].present?
+      next if !Dir.exist?(local_location)
+
       FileUtils.rmdir(local_location)
     end
   end
@@ -85,6 +100,7 @@ class Store::Provider::File
       parts.push sha[last_position, length3]
       last_position = end_position
     end
+
     path     = parts[ 0..6 ].join('/') + '/'
     file     = sha[last_position, sha.length]
     location = "#{base}/#{path}"
@@ -93,7 +109,7 @@ class Store::Provider::File
     if !File.exist?(location)
       FileUtils.mkdir_p(location)
     end
-    full_path = location += file
+    full_path = location + file
     full_path.gsub('//', '/')
   end
 

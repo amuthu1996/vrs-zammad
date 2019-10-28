@@ -23,14 +23,14 @@ module HasRoles
     group_id = self.class.ensure_group_id_parameter(group_id)
     access   = self.class.ensure_group_access_list_parameter(access)
 
-    RoleGroup.includes(:group, :role).exists?(
+    RoleGroup.eager_load(:group, :role).exists?(
       role_id:  roles.pluck(:id),
       group_id: group_id,
       access:   access,
       groups:   {
         active: true
       },
-      roles: {
+      roles:    {
         active: true
       }
     )
@@ -58,7 +58,7 @@ module HasRoles
       group_id = ensure_group_id_parameter(group_id)
       access   = ensure_group_access_list_parameter(access)
 
-      role_ids   = RoleGroup.includes(:role).where(group_id: group_id, access: access, roles: { active: true }).pluck(:role_id)
+      role_ids   = RoleGroup.eager_load(:role).where(group_id: group_id, access: access, roles: { active: true }).pluck(:role_id)
       join_table = reflect_on_association(:roles).join_table
       joins(:roles).where(active: true, join_table => { role_id: role_ids }).distinct.select(&:groups_access_permission?)
     end
@@ -84,6 +84,7 @@ module HasRoles
 
     def ensure_group_id_parameter(group_or_id)
       return group_or_id if group_or_id.is_a?(Integer)
+
       group_or_id.id
     end
 

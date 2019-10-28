@@ -7,15 +7,15 @@ class Organization < ApplicationModel
   include HasHistory
   include HasSearchIndexBackend
   include CanCsvImport
+  include ChecksHtmlSanitized
+  include HasObjectManagerAttributesValidation
 
   include Organization::ChecksAccess
   include Organization::Assets
   include Organization::Search
   include Organization::SearchIndex
 
-  # rubocop:disable Rails/InverseOf
   has_many :members, class_name: 'User'
-  # rubocop:enable Rails/InverseOf
 
   before_create :domain_cleanup
   before_update :domain_cleanup
@@ -24,10 +24,13 @@ class Organization < ApplicationModel
 
   activity_stream_permission 'admin.role'
 
+  sanitized_html :note
+
   private
 
   def domain_cleanup
     return true if domain.blank?
+
     domain.gsub!(/@/, '')
     domain.gsub!(/\s*/, '')
     domain.strip!

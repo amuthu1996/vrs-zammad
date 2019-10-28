@@ -12,7 +12,7 @@ class ChannelsTelegramController < ApplicationController
       channel_ids.push channel.id
     end
     render json: {
-      assets: assets,
+      assets:      assets,
       channel_ids: channel_ids
     }
   end
@@ -57,7 +57,7 @@ class ChannelsTelegramController < ApplicationController
   end
 
   def webhook
-    raise Exceptions::UnprocessableEntity, 'bot param missing' if params['bid'].blank?
+    raise Exceptions::UnprocessableEntity, 'bot id is missing' if params['bid'].blank?
 
     channel = Telegram.bot_by_bot_id(params['bid'])
     raise Exceptions::UnprocessableEntity, 'bot not found' if !channel

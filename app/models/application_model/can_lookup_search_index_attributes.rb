@@ -22,9 +22,9 @@ returns
       next if !value
 
       # get attribute name
-      attribute_name_with_id = key.to_s
-      attribute_name         = key.to_s
+      attribute_name = key.to_s
       next if attribute_name[-3, 3] != '_id'
+
       attribute_name = attribute_name[ 0, attribute_name.length - 3 ]
 
       # check if attribute method exists

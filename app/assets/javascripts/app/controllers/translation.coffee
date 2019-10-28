@@ -79,6 +79,14 @@ class Index extends App.ControllerSubContent
         @toggleAction()
     )
 
+  show: =>
+    # see https://github.com/zammad/zammad/issues/2056
+    @untranslatedAtLastRender ||= $.extend({}, App.i18n.getNotTranslated(@locale))
+    return if _.isEqual(@untranslatedAtLastRender, App.i18n.getNotTranslated(@locale))
+
+    @untranslatedAtLastRender = $.extend({}, App.i18n.getNotTranslated(@locale))
+    App.Event.trigger('ui:rerender')
+
   hide: =>
     @rerender()
 
@@ -145,8 +153,8 @@ class Index extends App.ControllerSubContent
 
   syncChanges: =>
     @loader = new App.ControllerModalLoading(
-      head:      'Get latest translations'
-      message:   'Getting latest translations from i18n.zammad.com'
+      head:      App.i18n.translateContent('Get latest translations')
+      message:   App.i18n.translateContent('Getting latest translations from i18n.zammad.com')
       container: @el.closest('.content')
     )
     hide = =>

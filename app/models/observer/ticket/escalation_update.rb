@@ -3,11 +3,7 @@
 class Observer::Ticket::EscalationUpdate < ActiveRecord::Observer
   observe 'ticket'
 
-  def after_create(record)
-    _check(record)
-  end
-
-  def after_update(record)
+  def after_commit(record)
     _check(record)
   end
 
@@ -16,10 +12,17 @@ class Observer::Ticket::EscalationUpdate < ActiveRecord::Observer
   def _check(record)
 
     # return if we run import mode
-    return false if Setting.get('import_mode')
+    return true if Setting.get('import_mode')
 
-    return false if !record.saved_changes?
+    # we need to fetch the a new instance of the record
+    # from the DB instead of using `record.reload`
+    # because Ticket#reload clears the ActiveMode::Dirty state
+    # state of the record instance which leads to empty
+    # Ticket#saved_changes (etc.) results in other callbacks
+    # later in the chain
+    updated_ticket = Ticket.find_by(id: record.id)
+    return true if !updated_ticket
 
-    record.escalation_calculation
+    updated_ticket.escalation_calculation
   end
 end

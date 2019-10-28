@@ -1,16 +1,17 @@
 class App.TicketZoomAttributeBar extends App.Controller
   elements:
     '.js-submitDropdown': 'buttonDropdown'
-    '.js-reset': 'resetButton'
+    '.js-reset':          'resetButton'
 
   events:
-    'mousedown .js-openDropdownMacro':    'toggleDropdownMacro'
-    'click .js-openDropdownMacro':        'stopPropagation'
+    'mousedown .js-openDropdownMacro':    'toggleMacroMenu'
+    'click .js-openDropdownMacro':        'preventDefaultAndStopPropagation'
     'mouseup .js-dropdownActionMacro':    'performTicketMacro'
     'mouseenter .js-dropdownActionMacro': 'onActionMacroMouseEnter'
     'mouseleave .js-dropdownActionMacro': 'onActionMacroMouseLeave'
     'click .js-secondaryAction':          'chooseSecondaryAction'
 
+  searchCondition: {}
   constructor: ->
     super
 
@@ -24,6 +25,12 @@ class App.TicketZoomAttributeBar extends App.Controller
       @render()
     )
 
+    @bind('MacroPreconditionUpdate', (data) =>
+      return if data.taskKey isnt @taskKey
+      @searchCondition = data.params
+      @render()
+    )
+
   release: =>
     App.Macro.unsubscribe(@subscribeId)
 
@@ -34,16 +41,24 @@ class App.TicketZoomAttributeBar extends App.Controller
     if @resetButton.get(0) && !@resetButton.hasClass('hide')
       resetButtonShown = true
 
-    macros = App.Macro.findAllByAttribute('active', true)
+    macros = App.Macro.search(filter: { active: true }, sortBy:'name', order:'DESC')
+
     @macroLastUpdated = App.Macro.lastUpdatedAt()
+    @possibleMacros   = []
 
     if _.isEmpty(macros) || !@permissionCheck('ticket.agent')
       macroDisabled = true
+    else
+      for macro in macros
+        if !_.isEmpty(macro.group_ids) && @searchCondition.group_id && !_.includes(macro.group_ids, parseInt(@searchCondition.group_id))
+          continue
+
+        @possibleMacros.push macro
 
     localeEl = $(App.view('ticket_zoom/attribute_bar')(
-      macros: macros
-      macroDisabled: macroDisabled
-      overview_id: @overview_id
+      macros:           @possibleMacros
+      macroDisabled:    macroDisabled
+      overview_id:      @overview_id
       resetButtonShown: resetButtonShown
     ))
     @setSecondaryAction(@secondaryAction, localeEl)
@@ -69,24 +84,26 @@ class App.TicketZoomAttributeBar extends App.Controller
     return if macroLastUpdated is @macroLastUpdated
     @render()
 
-  toggleDropdownMacro: =>
-    if @buttonDropdown.hasClass 'is-open'
-      @closeMacroDropdown()
-    else
-      @buttonDropdown.addClass 'is-open'
-      $(document).bind 'click.buttonDropdown', @closeMacroDropdown
+  toggleMacroMenu: =>
+    if @buttonDropdown.hasClass('is-open')
+      @closeMacroMenu()
+      return
+    @openMacroMenu()
 
-  closeMacroDropdown: =>
+  openMacroMenu: =>
+    @buttonDropdown.addClass 'is-open'
+    $(document).bind 'click.buttonDropdown', @closeMacroMenu
+
+  closeMacroMenu: =>
     @buttonDropdown.removeClass 'is-open'
     $(document).unbind 'click.buttonDropdown'
 
   performTicketMacro: (e) =>
     macroId = $(e.currentTarget).data('id')
-    console.log 'perform action', @$(e.currentTarget).text(), macroId
     macro = App.Macro.find(macroId)
 
-    @callback(e, macro.perform)
-    @closeMacroDropdown()
+    @callback(e, macro)
+    @closeMacroMenu()
 
   onActionMacroMouseEnter: (e) =>
     @$(e.currentTarget).addClass('is-active')

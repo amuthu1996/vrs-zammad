@@ -16,6 +16,7 @@ class CalendarSubscriptions
     end
 
     return if @user.preferences[:calendar_subscriptions].blank?
+
     @preferences = @preferences.merge(@user.preferences[:calendar_subscriptions])
   end
 
@@ -40,7 +41,7 @@ class CalendarSubscriptions
     events_data = []
     if @preferences[ object_name ].present?
       sub_class_name = object_name.to_s.capitalize
-      object         = Object.const_get("CalendarSubscriptions::#{sub_class_name}")
+      object         = "CalendarSubscriptions::#{sub_class_name}".constantize
       instance       = object.new(@user, @preferences[ object_name ])
       method         = instance.method(method_name)
       events_data += method.call

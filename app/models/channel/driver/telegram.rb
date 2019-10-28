@@ -9,7 +9,7 @@ class Channel::Driver::Telegram
     {
       adapter: 'telegram',
       auth: {
-        api_key:       api_key
+        api_key: api_key
       },
     },
     telegram_attributes,
@@ -50,6 +50,7 @@ returns
     if options[:auth] && options[:auth][:external_credential_id]
       external_credential = ExternalCredential.find_by(id: options[:auth][:external_credential_id])
       raise "No such ExternalCredential.find(#{options[:auth][:external_credential_id]})" if !external_credential
+
       options[:auth][:api_key] = external_credential.credentials['api_key']
     end
     options

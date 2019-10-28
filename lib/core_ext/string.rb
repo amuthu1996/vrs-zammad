@@ -1,3 +1,5 @@
+require 'rchardet'
+
 class String
   alias old_strip strip
   alias old_strip! strip!
@@ -8,7 +10,7 @@ class String
       sub!(/[[[:space:]]\u{200B}\u{FEFF}]+\Z/, '')
 
     # if incompatible encoding regexp match (UTF-8 regexp with ASCII-8BIT string) (Encoding::CompatibilityError), use default
-    rescue
+    rescue Encoding::CompatibilityError
       old_strip!
     end
     self
@@ -20,7 +22,7 @@ class String
       new_string.sub!(/[[[:space:]]\u{200B}\u{FEFF}]+\Z/, '')
 
     # if incompatible encoding regexp match (UTF-8 regexp with ASCII-8BIT string) (Encoding::CompatibilityError), use default
-    rescue
+    rescue Encoding::CompatibilityError
       new_string = old_strip
     end
     new_string
@@ -85,6 +87,7 @@ class String
   # More details: http://pjambet.github.io/blog/emojis-and-mysql/
   def utf8_to_3bytesutf8
     return self if Rails.application.config.db_4bytes_utf8
+
     each_char.select do |c|
       if c.bytes.count > 3
         Rails.logger.warn "strip out 4 bytes utf8 chars '#{c}' of '#{self}'"
@@ -109,7 +112,7 @@ class String
     string = "#{self}" # rubocop:disable Style/UnneededInterpolation
 
     # in case of invalid encoding, strip invalid chars
-    # see also test/fixtures/mail21.box
+    # see also test/data/mail/mail021.box
     # note: string.encode!('UTF-8', 'UTF-8', :invalid => :replace, :replace => '?') was not detecting invalid chars
     if !string.valid_encoding?
       string = string.chars.select(&:valid_encoding?).join
@@ -122,11 +125,13 @@ class String
     link_list = ''
     counter   = 0
     if !string_only
-      string.gsub!(/<a[[:space:]].*?href=("|')(.+?)("|').*?>/ix) do
-        link = $2
-        counter = counter + 1
-        link_list += "[#{counter}] #{link}\n"
-        "[#{counter}] "
+      if string.scan(/<a[[:space:]]/i).count < 5_000
+        string.gsub!(/<a[[:space:]].*?href=("|')(.+?)("|').*?>/ix) do
+          link = $2
+          counter = counter + 1
+          link_list += "[#{counter}] #{link}\n"
+          "[#{counter}] "
+        end
       end
     else
       string.gsub!(%r{<a[[:space:]]+(|\S+[[:space:]]+)href=("|')(.+?)("|')([[:space:]]*|[[:space:]]+[^>]*)>(.+?)<[[:space:]]*/a[[:space:]]*>}mxi) do |_placeholder|
@@ -148,19 +153,20 @@ class String
           text_compare.downcase!
           text_compare.sub!(%r{/$}, '')
         end
-        placeholder = if link_compare.present? && text_compare.blank?
-                        link
-                      elsif link_compare.blank? && text_compare.present?
-                        text
-                      elsif link_compare && link_compare =~ /^mailto/i
-                        text
-                      elsif link_compare.present? && text_compare.present? && (link_compare == text_compare || link_compare == "mailto:#{text}".downcase || link_compare == "http://#{text}".downcase)
-                        "######LINKEXT:#{link}/TEXT:#{text}######"
-                      elsif text !~ /^http/
-                        "#{text} (######LINKRAW:#{link}######)"
-                      else
-                        "#{link} (######LINKRAW:#{text}######)"
-                      end
+
+        if link_compare.present? && text_compare.blank?
+          link
+        elsif link_compare.blank? && text_compare.present?
+          text
+        elsif link_compare && link_compare =~ /^mailto/i
+          text
+        elsif link_compare.present? && text_compare.present? && (link_compare == text_compare || link_compare == "mailto:#{text}".downcase || link_compare == "http://#{text}".downcase)
+          "######LINKEXT:#{link}/TEXT:#{text}######"
+        elsif text !~ /^http/
+          "#{text} (######LINKRAW:#{link}######)"
+        else
+          "#{link} (######LINKRAW:#{text}######)"
+        end
       end
     end
 
@@ -175,10 +181,10 @@ class String
 
     # pre/code handling 1/2
     string.gsub!(%r{<pre>(.+?)</pre>}m) do |placeholder|
-      placeholder = placeholder.gsub(/\n/, '###BR###')
+      placeholder.gsub(/\n/, '###BR###')
     end
     string.gsub!(%r{<code>(.+?)</code>}m) do |placeholder|
-      placeholder = placeholder.gsub(/\n/, '###BR###')
+      placeholder.gsub(/\n/, '###BR###')
     end
 
     # insert spaces on [A-z]\n[A-z]
@@ -226,11 +232,12 @@ class String
         if content.match?(/^www/i)
           content = "http://#{content}"
         end
-        placeholder = if content =~ /^(http|https|ftp|tel)/i
-                        "#{pre}######LINKRAW:#{content}#######{post}"
-                      else
-                        "#{pre}#{content}#{post}"
-                      end
+
+        if content =~ /^(http|https|ftp|tel)/i
+          "#{pre}######LINKRAW:#{content}#######{post}"
+        else
+          "#{pre}#{content}#{post}"
+        end
       end
     end
 
@@ -277,6 +284,7 @@ class String
         chr_orig
       end
     end
+    string = string.utf8_encode(fallback: :read_as_sanitized_binary)
 
     # remove tailing empty spaces
     string.gsub!(/[[:blank:]]+$/, '')
@@ -369,7 +377,7 @@ class String
       ]
       map.each do |regexp|
         string.sub!(/#{regexp}/m) do |placeholder|
-          placeholder = "#{marker}#{placeholder}"
+          "#{marker}#{placeholder}"
         end
       end
       return string
@@ -383,7 +391,7 @@ class String
 
     # search for signature separator "--\n"
     string.sub!(/^\s{0,2}--\s{0,2}$/) do |placeholder|
-      placeholder = "#{marker}#{placeholder}"
+      "#{marker}#{placeholder}"
     end
 
     map = {}
@@ -439,10 +447,8 @@ class String
     #map['word-en-de'] = "[^#{marker}].{1,250}\s(wrote|schrieb):"
 
     map.each_value do |regexp|
-      begin
-        string.sub!(/#{regexp}/) do |placeholder|
-          placeholder = "#{marker}#{placeholder}"
-        end
+      string.sub!(/#{regexp}/) do |placeholder|
+        "#{marker}#{placeholder}"
       rescue
         # regexp was not possible because of some string encoding issue, use next
         Rails.logger.debug { "Invalid string/charset combination with regexp #{regexp} in string" }
@@ -450,5 +456,80 @@ class String
     end
 
     string
+  end
+
+  # Returns a copied string whose encoding is UTF-8.
+  # If both the provided and current encodings are invalid,
+  # an auto-detected encoding is tried.
+  #
+  # Supports some fallback strategies if a valid encoding cannot be found.
+  #
+  # Options:
+  #
+  #   * from: An encoding to try first.
+  #           Takes precedence over the current and auto-detected encodings.
+  #
+  #   * fallback: The strategy to follow if no valid encoding can be found.
+  #     * `:output_to_binary` returns an ASCII-8BIT-encoded string.
+  #     * `:read_as_sanitized_binary` returns a UTF-8-encoded string with all
+  #       invalid byte sequences replaced with "?" characters.
+  def utf8_encode(**options)
+    dup.utf8_encode!(options)
+  end
+
+  def utf8_encode!(**options)
+    return force_encoding('utf-8') if dup.force_encoding('utf-8').valid_encoding?
+
+    # convert string to given charset, if valid_encoding? is true
+    if options[:from].present?
+      begin
+        encoding = Encoding.find(options[:from])
+        if encoding.present? && dup.force_encoding(encoding).valid_encoding?
+          force_encoding(encoding)
+          return encode!('utf-8', encoding)
+        end
+      rescue ArgumentError, EncodingError => e
+        Rails.logger.error { e.inspect }
+      end
+    end
+
+    # try to find valid encodings of string
+    viable_encodings.each do |enc|
+
+      return encode!('utf-8', enc)
+    rescue EncodingError => e
+      Rails.logger.error { e.inspect }
+
+    end
+
+    case options[:fallback]
+    when :output_to_binary
+      force_encoding('ascii-8bit')
+    when :read_as_sanitized_binary
+      encode!('utf-8', 'ascii-8bit', invalid: :replace, undef: :replace, replace: '?')
+    else
+      raise EncodingError, 'could not find a valid input encoding'
+    end
+  end
+
+  private
+
+  def viable_encodings(try_first: nil)
+    return dup.viable_encodings(try_first: try_first) if frozen?
+
+    provided = Encoding.find(try_first) if try_first.present?
+    original = encoding
+    detected = CharDet.detect(self)['encoding']
+
+    [provided, original, detected]
+      .compact
+      .reject { |e| Encoding.find(e) == Encoding::ASCII_8BIT }
+      .reject { |e| Encoding.find(e) == Encoding::UTF_8 }
+      .select { |e| force_encoding(e).valid_encoding? }
+      .tap { force_encoding(original) } # clean up changes from previous line
+
+  # if `try_first` is not a valid encoding, try_first again without it
+  rescue ArgumentError
+    try_first.present? ? viable_encodings : raise
   end
 end

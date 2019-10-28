@@ -1,5 +1,5 @@
 class Widget extends App.Controller
-  errorCount: 0
+  serverRestarted: false
   constructor: ->
     super
 
@@ -48,8 +48,8 @@ class Widget extends App.Controller
   maintanaceRestartAuto: (data) =>
     return if @messageRestartAuto
     @messageRestartAuto = new App.SessionMessage(
-      head:         'Zammad is restarting...'
-      message:      'Some system settings have changed, Zammad is restarting. Please wait until Zammad is back again.'
+      head:         App.i18n.translateContent('Zammad is restarting...')
+      message:      App.i18n.translateContent('Some system settings have changed, Zammad is restarting. Please wait until Zammad is back again.')
       keyboard:     false
       backdrop:     false
       buttonClose:  false
@@ -64,8 +64,8 @@ class Widget extends App.Controller
   maintanaceRestartManual: (data) =>
     return if @messageRestartManual
     @messageRestartManual = new App.SessionMessage(
-      head:         'Zammad need a restart!'
-      message:      'Some system settings have changed, please restart all Zammad processes! If you want to do this automatically, set environment variable APP___RESTART___CMD="/path/to/your___app___script.sh restart".'
+      head:         App.i18n.translateContent('Zammad need a restart!')
+      message:      App.i18n.translateContent('Some system settings have changed, please restart all Zammad processes! If you want to do this automatically, set environment variable APP___RESTART___CMD="/path/to/your___app___script.sh restart".')
       keyboard:     false
       backdrop:     false
       buttonClose:  false
@@ -79,8 +79,8 @@ class Widget extends App.Controller
   maintanaceConfigChanged: (data) =>
     return if @messageConfigChanged
     @messageConfigChanged = new App.SessionMessage(
-      head:         'Config has changed'
-      message:      'The configuration of Zammad has changed, please reload your browser.'
+      head:         App.i18n.translateContent('Config has changed')
+      message:      App.i18n.translateContent('The configuration of Zammad has changed, please reload your browser.')
       keyboard:     false
       backdrop:     true
       buttonClose:  false
@@ -99,8 +99,8 @@ class Widget extends App.Controller
     return if localAppVersion[1] isnt 'true'
     message = =>
       @messageAppVersion = new App.SessionMessage(
-        head:         'New Version'
-        message:      'A new version of Zammad is available, please reload your browser.'
+        head:         App.i18n.translateContent('New Version')
+        message:      App.i18n.translateContent('A new version of Zammad is available, please reload your browser.')
         keyboard:     false
         backdrop:     true
         buttonClose:  false
@@ -109,21 +109,24 @@ class Widget extends App.Controller
       )
     @delay(message, 2000)
 
-  checkAvailability: (delay) =>
+  checkAvailability: (timeout) =>
     delay = =>
       @ajax(
-        id:    'check_availability'
-        type:  'get'
-        url:   "#{@apiPath}/available"
+        id:      'check_availability'
+        type:    'get'
+        url:     "#{@apiPath}/available"
         success: (data) =>
-          if @errorCount is 0
-            @checkAvailability()
+          if @serverRestarted
+            @windowReload()
             return
-          @windowReload()
-        error: =>
-          @errorCount += 1
+
           @checkAvailability()
+        error: =>
+          @serverRestarted = true
+          @checkAvailability(2000)
       )
-    @delay(delay, 2000)
+
+    timeout ?= 1000
+    @delay(delay, timeout)
 
 App.Config.set('maintenance', Widget, 'Widgets')

@@ -262,6 +262,10 @@ class App.Utils
     # remove word markup
     @_removeWordMarkup(html)
 
+    # strip out browser-inserted (broken) link
+    # (see https://github.com/zammad/zammad/issues/2019)
+    @_stripDoubleDomainAnchors(html)
+
     # remove tags, keep content
     html.find('font, small, time, form, label').replaceWith( ->
       $(@).contents()
@@ -395,6 +399,15 @@ class App.Utils
       return window.word_filter(html)
     html
 
+  @_stripDoubleDomainAnchors: (html) ->
+    html.find('a').each( ->
+      origHref  = $(@).attr('href')
+      return if !origHref?
+
+      fixedHref = origHref.replace(/^https?:\/\/.*(?=(https?|#{config.http_type}):\/\/)/, '')
+      if origHref != fixedHref then $(@).attr('href', fixedHref)
+    )
+
   # signatureNeeded = App.Utils.signatureCheck(message, signature)
   @signatureCheck: (message, signature) ->
     messageText   = $('<div>' + message + '</div>').text().trim()
@@ -412,8 +425,8 @@ class App.Utils
     else
       true
 
-  # messageWithMarker = App.Utils.signatureIdentify(message, false)
-  @signatureIdentify: (message, test = false, internal = false) ->
+  # messageWithMarker = App.Utils.signatureIdentifyByPlaintext(message, false)
+  @signatureIdentifyByPlaintext: (message, test = false, internal = false) ->
     textToSearch = @html2text(message)
 
     # if we do have less then 10 lines and less then 300 chars ignore this
@@ -632,27 +645,106 @@ class App.Utils
       regex = new RegExp("\>(\s{0,10}#{quote(App.Utils.htmlEscape(markers[0].line))})")
       message.replace(regex, ">#{markerTemplate}\$1")
 
+  @isMicrosoftOffice: (message) ->
+    regex = new RegExp('-----(Ursprüngliche Nachricht|Original Message|Mensaje original|Message d\'origine|Messaggio originale|邮件原件|原始郵件)-----')
+    message.match(regex)
+
+  # messageWithMarker = App.Utils.signatureIdentifyByHtml(message)
+  @signatureIdentifyByHtml: (message) ->
+    # use the plaintext fallback method if message is composed by Microsoft Office
+    if @isMicrosoftOffice message
+      return @signatureIdentifyByPlaintext message
+
+    message_element = $($.parseHTML(message))
+    if message_element.length == 1 && $(message_element[0])?.children()?.length
+      message_element[0].innerHTML = @signatureIdentifyByHtmlHelper(message_element[0].innerHTML)
+      return message_element[0].outerHTML
+
+    @signatureIdentifyByHtmlHelper(message)
+
+  @signatureIdentifyByHtmlHelper: (message, internal = false) ->
+    # blockquotes and signature blocks are considered "dismiss nodes" and their indice will be stored
+    dismissNodes = []
+    contentNodes = []
+    res = []
+
+    isQuoteOrSignature = (el) ->
+      el = $(el)
+      tag = el.prop("tagName")
+      return true if tag is 'BLOCKQUOTE'
+      # detect Zammad's own <div data-signature='true'> marker
+      return true if tag is 'DIV' && (el.data('signature') || el.prop('class') is 'yahoo_quoted')
+      _.some el.children(), (el) -> isQuoteOrSignature el
+
+    $('<div/>').html(message).contents().each (index, node) ->
+      text = $(node).text()
+      if node.nodeType == Node.TEXT_NODE
+        res.push text
+        if text.trim().length
+          contentNodes.push index
+      else if node.nodeType == Node.ELEMENT_NODE
+        res.push node.outerHTML
+        if isQuoteOrSignature node
+          dismissNodes.push index
+        else if text.trim().length
+          contentNodes.push index
+
+    # filter out all dismiss nodes smaller than the largest content node
+    max_content = _.max contentNodes || 0
+    dismissNodes = _.filter dismissNodes, (x) -> x >= max_content
+
+    # return the message unchanged if there are no nodes to dismiss
+    return message if !dismissNodes.length
+
+    # insert marker template at the earliest valid location
+    markerIndex = _.min dismissNodes
+    markerTemplate = '<span class="js-signatureMarker"></span>'
+
+    res.splice(markerIndex, 0, markerTemplate)
+    res.join('')
+
   # textReplaced = App.Utils.replaceTags( template, { user: { firstname: 'Bob', lastname: 'Smith' } } )
-  @replaceTags: (template, objects) ->
+  @replaceTags: (template, objects, encodeLink = false) ->
     template = template.replace( /#\{\s{0,2}(.+?)\s{0,2}\}/g, (index, key) ->
       key = key.replace(/<.+?>/g, '')
       levels  = key.split(/\./)
       dataRef = objects
+      dataRefLast = undefined
       for level in levels
-        if level of dataRef
+        if typeof dataRef is 'object' && level of dataRef
+          dataRefLast = dataRef
           dataRef = dataRef[level]
         else
           dataRef = ''
           break
+      value = undefined
+
+      # if value is a function, execute function
       if typeof dataRef is 'function'
         value = dataRef()
+
+      # if value has content
       else if dataRef isnt undefined && dataRef isnt null && dataRef.toString
-        value = dataRef.toString()
+
+        # in case if we have a references object, check what datatype the attribute has
+        # and e. g. convert timestamps/dates to browser locale
+        if dataRefLast?.constructor?.className
+          localClassRef = App[dataRefLast.constructor.className]
+          if localClassRef?.attributesGet
+            attributes = localClassRef.attributesGet()
+            if attributes?[level]
+              if attributes[level]['tag'] is 'datetime'
+                value = App.i18n.translateTimestamp(dataRef)
+              else if attributes[level]['tag'] is 'date'
+                value = App.i18n.translateDate(dataRef)
+
+        # as fallback use value of toString()
+        if !value
+          value = dataRef.toString()
       else
         value = ''
-      #console.log( "tag replacement #{key}, #{value} env: ", objects)
-      if value is ''
-        value = '-'
+      value = '-' if value is ''
+      value = encodeURIComponent(value) if encodeLink
       value
     )
 
@@ -682,6 +774,11 @@ class App.Utils
             changes[dataNowkey] = diff
         else if _.isObject( dataNow[dataNowkey] ) &&  _.isObject( dataLast[dataNowkey] )
           changes = @_formDiffChanges( dataNow[dataNowkey], dataLast[dataNowkey], changes )
+        # fix for issue #2042 - incorrect notification when closing a tab after setting up an object
+        # Ignore the diff if both conditions are true:
+        # 1. current value is the empty string (no user input yet)
+        # 2. no previous value (it's a newly added attribute)
+        else if dataNow[dataNowkey] == '' && !dataLast[dataNowkey]?
         else
           changes[dataNowkey] = dataNow[dataNowkey]
     changes
@@ -720,17 +817,22 @@ class App.Utils
   # check if attachment is referenced in message
   @checkAttachmentReference: (message) ->
     return false if !message
+
+    # remove blockquote from message, check only the unquoted content
+    tmp = $('<div>' + message + '</div>')
+    tmp.find('blockquote').remove()
+    text = tmp.text()
+
     matchwords = ['Attachment', 'attachment', 'Attached', 'attached', 'Enclosed', 'enclosed', 'Enclosure', 'enclosure']
     for word in matchwords
-
       # en
       attachmentTranslatedRegExp = new RegExp("\\W#{word}\\W", 'i')
-      return word if message.match(attachmentTranslatedRegExp)
+      return word if text.match(attachmentTranslatedRegExp)
 
       # user locale
       attachmentTranslated = App.i18n.translateContent(word)
       attachmentTranslatedRegExp = new RegExp("\\W#{attachmentTranslated}\\W", 'i')
-      return attachmentTranslated if message.match(attachmentTranslatedRegExp)
+      return attachmentTranslated if text.match(attachmentTranslatedRegExp)
     false
 
   # human readable file size
@@ -856,6 +958,34 @@ class App.Utils
     path = if window.svgPolyfill then '' else 'assets/images/icons.svg'
     "<svg class=\"icon icon-#{name} #{className}\"><use xlink:href=\"#{path}#icon-#{name}\" /></svg>"
 
+  @fontIcon: (name, font, className = '') ->
+    @loadIconFont(font)
+    "<i class=\"icon #{className}\" data-font=\"#{font}\">#{String.fromCharCode('0x'+ name)}</i>"
+
+  @loadIconFont: (font) ->
+    el = $("[data-icon-font=\"#{font}\"]")
+    return if el.length # already loaded
+
+    el = $("<style data-icon-font=\"#{font}\">").appendTo('head')
+    woffUrl = "assets/icon-fonts/#{font}.woff"
+    css = """
+          @font-face {
+            font-family: '#{font}';
+            src: url('#{woffUrl}');
+            font-weight: normal;
+            font-style: normal;
+          }
+
+          [data-font="#{font}"] {
+            font-family: '#{font}';
+          }
+          """
+
+    el.text css
+
+  @loadIconFontInfo: (font, callback) ->
+    $.getJSON "assets/icon-fonts/#{font}.json", (data) -> callback(data.icons)
+
   @getScrollBarWidth: ->
     $outer = $('<div>').css(
       visibility: 'hidden'
@@ -950,14 +1080,14 @@ class App.Utils
 
     if type.name is 'phone'
 
-      # inbound call
+      # the article we are replying to is an outbound call
       if article.sender.name is 'Agent'
-        if article.to
+        if article.to?.match(/@/)
           articleNew.to = article.to
 
-      # outbound call
-      else if article.to
-        articleNew.to = article.to
+      # the article we are replying to is an incoming call
+      else if article.from?.match(/@/)
+        articleNew.to = App.Utils.parseAddressListLocal(article.from).join(', ')
 
       # if sender is customer but in article.from is no email, try to get
       # customers email via customer user
@@ -1021,32 +1151,20 @@ class App.Utils
       # filter for uniq recipients
       recipientAddresses = {}
       addAddresses = (addressLine, line) ->
-        lineNew = ''
         recipients = App.Utils.parseAddressListLocal(addressLine)
 
-        if !_.isEmpty(recipients)
-          for recipient in recipients
-            if !_.isEmpty(recipient)
-              localRecipientAddress = recipient.toString().toLowerCase()
+        recipients = recipients.map((r) -> r.toString().toLowerCase())
+        recipients = _.reject(recipients, (r) -> _.isEmpty(r))
+        recipients = _.reject(recipients, (r) -> isLocalAddress(r))
+        recipients = _.reject(recipients, (r) -> recipientAddresses[r])
+        recipients = _.each(recipients, (r) -> recipientAddresses[r] = true)
 
-              # check if address is not local
-              if !isLocalAddress(localRecipientAddress)
+        recipients.push(line) if !_.isEmpty(line)
 
-                # filter for uniq recipients
-                if !recipientAddresses[localRecipientAddress]
-                  recipientAddresses[localRecipientAddress] = true
+        # see https://github.com/zammad/zammad/issues/2154
+        recipients = recipients.map((a) -> a.replace(/'(\S+@\S+\.\S+)'/, '$1'))
 
-                  # add recipient
-                  if lineNew
-                    lineNew = lineNew + ', '
-                  lineNew = lineNew + localRecipientAddress
-
-        lineNew
-        if !_.isEmpty(line)
-          if !_.isEmpty(lineNew)
-            lineNew += ', '
-          lineNew += line
-        lineNew
+        recipients.join(', ')
 
       if articleNew.to
         articleNew.to = addAddresses(articleNew.to)
@@ -1062,7 +1180,7 @@ class App.Utils
     articleNew
 
   # apply email token field with autocompletion
-  @tokaniceEmails: (selector) ->
+  @tokanice: (selector, type) ->
     source = "#{App.Config.get('api_path')}/users/search"
     a = ->
       $(selector).tokenfield(
@@ -1072,7 +1190,7 @@ class App.Utils
           minLength: 2
         },
       ).on('tokenfield:createtoken', (e) ->
-        if !e.attrs.value.match(/@/) || e.attrs.value.match(/\s/)
+        if type is 'email' && !e.attrs.value.match(/@/) || e.attrs.value.match(/\s/)
           e.preventDefault()
           return false
         e.attrs.label = e.attrs.value
@@ -1080,3 +1198,74 @@ class App.Utils
       )
     App.Delay.set(a, 500, undefined, 'tags')
 
+  @htmlImage2DataUrl: (html) ->
+    return html if !html
+    return html if !html.match(/<img/i)
+    html = @_checkTypeOf("<div>#{html}</div>")
+
+    html.find('img').each( (index) ->
+      src = $(@).attr('src')
+
+      # <img src="cid: ..."> or an empty src attribute may mean broken emails (see issue #2305 / #2701)
+      return if !src? or src.match(/^(data|cid):/i)
+
+      base64 = App.Utils._htmlImage2DataUrl(@)
+      $(@).attr('src', base64)
+    )
+    html.get(0).innerHTML
+
+  @_htmlImage2DataUrl: (img) ->
+    canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0)
+    canvas.toDataURL('image/png')
+
+  # works asynchronously to make sure images are loaded before converting to base64
+  # output is passed to callback
+  @htmlImage2DataUrlAsync: (html, callback) ->
+    output = @_checkTypeOf("<div>#{html}</div>")
+
+    # coffeelint: disable=indentation
+    elems = output
+             .find('img')
+             .toArray()
+             .filter (elem) -> !elem.src.match(/^(data|cid):/i)
+    # coffeelint: enable=indentation
+
+    cacheOrDone = ->
+      if (nextElem = elems.pop())
+        App.Utils._htmlImage2DataUrlAsync(nextElem, (data) ->
+          $(nextElem).attr('src', data)
+          cacheOrDone()
+        )
+      else
+        callback(output[0].innerHTML)
+
+    cacheOrDone()
+
+  @_htmlImage2DataUrlAsync: (originalImage, callback) ->
+    imageCache = new Image()
+    imageCache.onload = ->
+      data = App.Utils._htmlImage2DataUrl(originalImage)
+      callback(data)
+
+    imageCache.src = originalImage.src
+
+  @baseUrl: ->
+    fqdn      = App.Config.get('fqdn')
+    http_type = App.Config.get('http_type')
+    if !fqdn || fqdn is 'zammad.example.com'
+      url = window.location.origin
+    else
+      url = "#{http_type}://#{fqdn}"
+
+  @joinUrlComponents: (array...) ->
+    if Array.isArray(array[0])
+      array = array[0]
+
+    array
+      .filter (elem) ->
+        elem?
+      .join '/'

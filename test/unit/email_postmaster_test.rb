@@ -569,7 +569,7 @@ Some Text'
 
     PostmasterFilter.destroy_all
 
-    # follow up with create post master filter test
+    # follow-up with create post master filter test
     PostmasterFilter.create!(
       name: 'used - empty selector',
       match: {
@@ -592,7 +592,7 @@ Some Text'
     data = 'From: Some Body <somebody@example.com>
 To: Bob <bod@example.com>
 Cc: any@example.com
-Subject: follow up with create post master filter test
+Subject: follow-up with create post master filter test
 
 Some Text'
 
@@ -601,7 +601,7 @@ Some Text'
 
     assert_equal(group2.name, ticket.group.name)
     assert_equal('2 normal', ticket.priority.name)
-    assert_equal('follow up with create post master filter test', ticket.title)
+    assert_equal('follow-up with create post master filter test', ticket.title)
 
     assert_equal('Customer', article.sender.name)
     assert_equal('email', article.type.name)
@@ -628,7 +628,7 @@ Some Text"
     assert_equal(group1.name, ticket_followup.group.name)
     assert_equal(group1.name, ticket_followup.group.name)
     assert_equal('2 normal', ticket_followup.priority.name)
-    assert_equal('follow up with create post master filter test', ticket_followup.title)
+    assert_equal('follow-up with create post master filter test', ticket_followup.title)
 
     assert_equal('Customer', article.sender.name)
     assert_equal('email', article.type.name)
@@ -961,4 +961,106 @@ Some Text'
     assert_equal(false, article.internal)
   end
 
+  test 'tags in postmaster filter' do
+    group_default = Group.lookup(name: 'Users')
+
+    PostmasterFilter.create!(
+      name: '01 set tag for email',
+      match: {
+        from: {
+          operator: 'contains',
+          value: 'nobody@example.com',
+        },
+      },
+      perform: {
+        'x-zammad-ticket-tags' => {
+          operator: 'add',
+          value: 'test1, test2, test3',
+        },
+      },
+      channel: 'email',
+      active: true,
+      created_by_id: 1,
+      updated_by_id: 1,
+    )
+
+    PostmasterFilter.create!(
+      name: '02 set tag for email',
+      match: {
+        from: {
+          operator: 'contains',
+          value: 'nobody@example.com',
+        },
+      },
+      perform: {
+        'x-zammad-ticket-tags' => {
+          operator: 'remove',
+          value: 'test2, test3',
+        },
+      },
+      channel: 'email',
+      active: true,
+      created_by_id: 1,
+      updated_by_id: 1,
+    )
+
+    PostmasterFilter.create!(
+      name: '03 set tag for email',
+      match: {
+        from: {
+          operator: 'contains',
+          value: 'nobody@example.com',
+        },
+      },
+      perform: {
+        'x-zammad-ticket-tags' => {
+          operator: 'add',
+          value: 'test3',
+        },
+      },
+      channel: 'email',
+      active: true,
+      created_by_id: 1,
+      updated_by_id: 1,
+    )
+
+    PostmasterFilter.create!(
+      name: '04 set tag for email',
+      match: {
+        from: {
+          operator: 'contains',
+          value: 'nobody@example.com',
+        },
+      },
+      perform: {
+        'x-zammad-ticket-tags' => {
+          operator: 'add',
+          value: 'abc1  ,   abc2   ',
+        },
+      },
+      channel: 'email',
+      active: true,
+      created_by_id: 1,
+      updated_by_id: 1,
+    )
+
+    data = 'From: ME Bob <nobody@example.com>
+To: customer@example.com
+Subject: some subject
+
+Some Text'
+
+    parser = Channel::EmailParser.new
+    ticket, article, user = parser.process({ group_id: group_default.id, trusted: false }, data)
+    tags = Tag.tag_list(object: 'Ticket', o_id: ticket.id)
+    assert_equal('Users', ticket.group.name)
+    assert_equal('2 normal', ticket.priority.name)
+    assert_equal('some subject', ticket.title)
+    assert_equal('nobody@example.com', ticket.customer.email)
+    assert_equal(4, tags.count)
+    assert(tags.include?('test1'))
+    assert(tags.include?('test3'))
+    assert(tags.include?('abc1'))
+    assert(tags.include?('abc2'))
+ end
 end

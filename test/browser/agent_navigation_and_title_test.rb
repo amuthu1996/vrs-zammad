@@ -1,4 +1,3 @@
-
 require 'browser_test_helper'
 
 class AgentNavigationAndTitleTest < TestCase
@@ -7,7 +6,7 @@ class AgentNavigationAndTitleTest < TestCase
     login(
       username: 'master@example.com',
       password: 'test',
-      url: browser_url,
+      url:      browser_url,
     )
     tasks_close_all()
 
@@ -30,7 +29,7 @@ class AgentNavigationAndTitleTest < TestCase
 
     # ticket create screen
     ticket_create(
-      data: {
+      data:          {
         customer: 'nico',
         group:    'Users',
         title:    'ticket create #1',
@@ -68,7 +67,7 @@ class AgentNavigationAndTitleTest < TestCase
     exists_not(css: '#navigation .js-menu .is-active')
 
     # ticket zoom screen
-    ticket1 = ticket_create(
+    ticket_create(
       data: {
         customer: 'nico',
         group:    'Users',

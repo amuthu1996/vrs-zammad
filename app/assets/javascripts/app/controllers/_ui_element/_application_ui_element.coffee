@@ -52,11 +52,9 @@ class App.UiElement.ApplicationUiElement
           row.name = App.i18n.translateInline(row.name)
         attribute.options.push row
     else
-      order = _.sortBy(
-        _.keys(selection), (item) ->
-          return '' if !selection[item] || !selection[item].toString
-          selection[item].toString().toLowerCase()
-      )
+      forceString = (s) ->
+        return if !selection[s] || !selection[s].toString then '' else selection[s].toString()
+      order = _.keys(selection).sort( (a, b) -> forceString(a).localeCompare(forceString(b)) )
       for key in order
         name_new = selection[key]
         if attribute.translate
@@ -121,7 +119,7 @@ class App.UiElement.ApplicationUiElement
               list.push record
 
         # check if current value need to be added
-        if params[ attribute.name ]
+        if params[ attribute.name ] && !attribute.rejectNonExistentValues
           hit = false
           for value in list
             if value['id'].toString() is params[ attribute.name ].toString()
@@ -165,11 +163,20 @@ class App.UiElement.ApplicationUiElement
         if attribute.translate
           nameNew = App.i18n.translateInline(nameNew)
 
-        attribute.options.push
+        row =
           value: item.id,
           note:  item.note,
           name:  nameNew,
           title: if item.email then item.email else nameNew
+
+        if item.graphic
+          row.graphic = item.graphic
+
+          # only used for graphics
+          if item.aspect_ratio
+            row.aspect_ratio = item.aspect_ratio
+
+        attribute.options.push row
 
     attribute.sortBy = null
 

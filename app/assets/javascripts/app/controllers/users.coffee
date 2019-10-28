@@ -11,6 +11,16 @@ class Index extends App.ControllerSubContent
     super
     @render()
 
+  show: =>
+    super
+    return if !@table
+    @table.show()
+
+  hide: =>
+    super
+    return if !@table
+    @table.hide()
+
   render: ->
     @html App.view('user')(
       head: 'Users'
@@ -18,7 +28,7 @@ class Index extends App.ControllerSubContent
         { name: 'Import', 'data-type': 'import', class: 'btn' }
         { name: 'New User', 'data-type': 'new', class: 'btn--success' }
       ]
-      roles: App.Role.all()
+      roles: App.Role.findAllByAttribute('active', true)
     )
 
     @$('.tab').on(
@@ -27,41 +37,40 @@ class Index extends App.ControllerSubContent
         e.preventDefault()
         $(e.target).toggleClass('active')
         query = @searchInput.val().trim()
-        if query
-          @delay( @search, 220, 'search' )
-          return
-        @recent()
+        @query = query
+        @delay(@search, 220, 'search')
     )
 
     # start search
     @searchInput.bind( 'keyup', (e) =>
       query = @searchInput.val().trim()
-      return if !query
       return if query is @query
       @query = query
-      @delay( @search, 220, 'search' )
+      @delay(@search, 220, 'search')
     )
 
     # show last 20 users
-    @recent()
+    @search()
 
   renderResult: (user_ids = []) ->
     @stopLoading()
 
     callbackHeader = (header) ->
       attribute =
-        name:       'switch_to'
-        display:    'Action'
-        className:  'actionCell'
-        translation: true
-        width: '200px'
+        name:         'switch_to'
+        display:      'Action'
+        className:    'actionCell'
+        translation:  true
+        width:        '250px'
+        displayWidth: 250
+        unresizable:  true
       header.push attribute
       header
 
     callbackAttributes = (value, object, attribute, header) ->
       text                  = App.i18n.translateInline('View from user\'s perspective')
       value                 = ' '
-      attribute.raw         = ' <span class="btn btn--primary btn--table switchView" title="' + text + '">' + App.Utils.icon('switchView') + text + '</span>'
+      attribute.raw         = ' <span class="btn btn--primary btn--small btn--slim switchView" title="' + text + '">' + App.Utils.icon('switchView') + '<span>' + text + '</span></span>'
       attribute.class       = ''
       attribute.parentClass = 'actionCell no-padding'
       attribute.link        = ''
@@ -114,7 +123,7 @@ class Index extends App.ControllerSubContent
       users.push user
 
     @$('.table-overview').html('')
-    new App.ControllerTable(
+    @table = new App.ControllerTable(
       tableId: 'users_admin_overview'
       el:      @$('.table-overview')
       model:   App.User
@@ -143,40 +152,18 @@ class Index extends App.ControllerSubContent
     App.Ajax.request(
       id: 'search'
       type: 'GET'
-      url: "#{@apiPath}/users/search"
+      url: "#{@apiPath}/users/search?sort_by=created_at"
       data:
-        query: @query
-        limit: 140
+        query: @query || '*'
+        limit: 50
         role_ids: role_ids
         full:  true
       processData: true,
       success: (data, status, xhr) =>
         App.Collection.loadAssets(data.assets)
         @renderResult(data.user_ids)
+        @stopLoading()
       done: =>
-        @stopLoading()
-    )
-
-  recent: =>
-    role_ids = []
-    @$('.tab.active').each( (i,d) ->
-      role_ids.push $(d).data('id')
-    )
-    @startLoading(@$('.table-overview'))
-    App.Ajax.request(
-      id: 'search'
-      type: 'GET'
-      url: "#{@apiPath}/users/recent"
-      data:
-        limit: 50
-        role_ids: role_ids
-        full: true
-      processData: true
-      success: (data, status, xhr) =>
-        App.Collection.loadAssets(data.assets)
-        @renderResult(data.user_ids)
-        @stopLoading()
-      error: =>
         @stopLoading()
     )
 
@@ -191,7 +178,7 @@ class Index extends App.ControllerSubContent
         navupdate: '#users'
       genericObject: 'User'
       container: @el.closest('.content')
-      callback: @recent
+      callback: @search
     )
 
   import: (e) ->

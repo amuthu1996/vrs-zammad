@@ -1,4 +1,3 @@
-
 require 'integration_test_helper'
 require 'slack'
 
@@ -6,7 +5,7 @@ class SlackTest < ActiveSupport::TestCase
 
   # needed to check correct behavior
   slack_group = Group.create_if_not_exists(
-    name: 'Slack',
+    name:          'Slack',
     updated_by_id: 1,
     created_by_id: 1
   )
@@ -34,11 +33,11 @@ class SlackTest < ActiveSupport::TestCase
     items = [
       {
         group_ids: [slack_group.id],
-        types: %w[create update reminder_reached],
-        webhook: webhook,
-        channel: channel,
-        username: 'zammad bot',
-        expand: false,
+        types:     %w[create update reminder_reached],
+        webhook:   webhook,
+        channel:   channel,
+        username:  'zammad bot',
+        expand:    false,
       }
     ]
     Setting.set('slack_config', { items: items })
@@ -58,7 +57,7 @@ class SlackTest < ActiveSupport::TestCase
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article1 = Ticket::Article.create(
+    Ticket::Article.create(
       ticket_id:     ticket1.id,
       body:          text,
       type:          Ticket::Article::Type.find_by(name: 'note'),
@@ -96,7 +95,7 @@ class SlackTest < ActiveSupport::TestCase
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article2 = Ticket::Article.create(
+    Ticket::Article.create(
       ticket_id:     ticket2.id,
       body:          text,
       type:          Ticket::Article::Type.find_by(name: 'note'),
@@ -153,11 +152,11 @@ class SlackTest < ActiveSupport::TestCase
     items = [
       {
         group_ids: slack_group.id.to_s,
-        types: 'create',
-        webhook: webhook,
-        channel: channel,
-        username: 'zammad bot',
-        expand: false,
+        types:     'create',
+        webhook:   webhook,
+        channel:   channel,
+        username:  'zammad bot',
+        expand:    false,
       }
     ]
     Setting.set('slack_config', { items: items })
@@ -177,7 +176,7 @@ class SlackTest < ActiveSupport::TestCase
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article3 = Ticket::Article.create(
+    Ticket::Article.create(
       ticket_id:     ticket3.id,
       body:          text,
       type:          Ticket::Article::Type.find_by(name: 'note'),
@@ -215,7 +214,7 @@ class SlackTest < ActiveSupport::TestCase
       updated_by_id: 1,
       created_by_id: 1,
     )
-    article4 = Ticket::Article.create(
+    Ticket::Article.create(
       ticket_id:     ticket4.id,
       body:          text,
       type:          Ticket::Article::Type.find_by(name: 'note'),
@@ -284,6 +283,7 @@ class SlackTest < ActiveSupport::TestCase
     channel_id = nil
     channels.each do |channel|
       next if channel['name'] != channel_name
+
       channel_id = channel['id']
     end
     if !channel_id
@@ -297,9 +297,11 @@ class SlackTest < ActiveSupport::TestCase
     if !channel_history['messages']
       raise "ERROR: No history messages for channel #{channel_name}/#{channel_id}"
     end
+
     message_count = 0
     channel_history['messages'].each do |message|
       next if !message['text']
+
       if message['text'].match?(/#{search_for}/i)
         message_count += 1
         p "SUCCESS: message with #{search_for} found #{message_count} time(s)!"

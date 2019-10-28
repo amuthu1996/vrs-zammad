@@ -14,7 +14,7 @@ class Observer::Ticket::Article::CommunicateFacebook::BackgroundJob
     log_error(article, "Can't find ticket.preferences for Ticket.find(#{article.ticket_id})") if !ticket.preferences
     log_error(article, "Can't find ticket.preferences['channel_id'] for Ticket.find(#{article.ticket_id})") if !ticket.preferences['channel_id']
     channel = Channel.lookup(id: ticket.preferences['channel_id'])
-    log_error(article, "Channel.find(#{channel.id}) isn't a twitter channel!") if channel.options[:adapter] !~ /\Afacebook/i
+    log_error(article, "Channel.find(#{channel.id}) isn't a twitter channel!") if !channel.options[:adapter].match?(/\Afacebook/i)
 
     # check source object id
     if !ticket.preferences['channel_fb_object_id']
@@ -66,22 +66,22 @@ class Observer::Ticket::Article::CommunicateFacebook::BackgroundJob
 
   def log_error(local_record, message)
     local_record.preferences['delivery_status'] = 'fail'
-    local_record.preferences['delivery_status_message'] = message
+    local_record.preferences['delivery_status_message'] = message.encode!('UTF-8', 'UTF-8', invalid: :replace, replace: '?')
     local_record.preferences['delivery_status_date'] = Time.zone.now
     local_record.save
     Rails.logger.error message
 
     if local_record.preferences['delivery_retry'] > 3
       Ticket::Article.create(
-        ticket_id: local_record.ticket_id,
-        content_type: 'text/plain',
-        body: "Unable to send post: #{message}",
-        internal: true,
-        sender: Ticket::Article::Sender.find_by(name: 'System'),
-        type: Ticket::Article::Type.find_by(name: 'note'),
-        preferences: {
+        ticket_id:     local_record.ticket_id,
+        content_type:  'text/plain',
+        body:          "Unable to send post: #{message}",
+        internal:      true,
+        sender:        Ticket::Article::Sender.find_by(name: 'System'),
+        type:          Ticket::Article::Type.find_by(name: 'note'),
+        preferences:   {
           delivery_article_id_related: local_record.id,
-          delivery_message: true,
+          delivery_message:            true,
         },
         updated_by_id: 1,
         created_by_id: 1,
@@ -99,6 +99,7 @@ class Observer::Ticket::Article::CommunicateFacebook::BackgroundJob
     if Rails.env.production?
       return current_time + attempts * 120.seconds
     end
+
     current_time + 5.seconds
   end
 end
