@@ -17,7 +17,7 @@
       <!-- | are_you_victim | victim | others | happening_now | when_it_happend | where | anonymous -->
       <div class="ticketZoom-header">
         <div class="flex vertical center">
-          <% if !(@role_ids[0] == 4 or @role_ids[1] == 4 or @role_ids[2] == 4 or @role_ids[3] == 4) and @ticket.anonymous == 'false' :%>
+          <% if !((@role_ids[0] == 5 or @role_ids[1] == 5 or @role_ids[2] == 5 or @role_ids[3] == 5 or @role_ids[4] == 5) and @ticket.anonymous == 'true') :%>
             <div class="js-avatar"></div>
           <% end %>
           <div class="js-ticketTitleContainer ticket-title"></div>
@@ -94,6 +94,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.5.3/jspdf.debug.js" integrity="sha384-NaWTHo/8YCBYJ59830LTz/P4aQZK1sS0SneOgAvhsIl3zBu8r9RevNg5lHCHAuQ/" crossorigin="anonymous"></script>
 
   <script>
+   <% if ((@role_ids[0] == 5 or @role_ids[1] == 5 or @role_ids[2] == 5 or @role_ids[3] == 5 or @role_ids[4] == 5) and @ticket.anonymous == 'true') :%>
+      $(".size-40").hide()
+   <% end %>
 var base64Img = null;
 imgToBase64('assets/images/octocat.jpg', function(base64) {
     base64Img = base64;
